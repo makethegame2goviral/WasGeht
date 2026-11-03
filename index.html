@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#12845a">
 <meta name="description" content="WasGeht – Deine Chats. Deine Welt.">
-<link rel="icon" type="image/svg+xml" href="./icon.svg?v=3">
-<link rel="apple-touch-icon" sizes="180x180" href="./icon.svg?v=3">
+<link rel="icon" type="image/svg+xml" href="./icon.svg?v=4">
+<link rel="apple-touch-icon" sizes="180x180" href="./icon.svg?v=4">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="WasGeht">
 <link rel="manifest" href="./manifest.webmanifest">
@@ -23,7 +23,7 @@
 <body>
 <div id="auth" class="auth-wrap">
   <div class="auth-card">
-    <div class="brand"><div class="brand-mark"><img src="./icon.svg?v=3" alt="WasGeht"></div><div><div class="brand-name">WasGeht</div><div class="tagline">Deine Chats. Deine Welt.</div></div></div>
+    <div class="brand"><div class="brand-mark"><img src="./icon.svg?v=4" alt="WasGeht"></div><div><div class="brand-name">WasGeht</div><div class="tagline">Deine Chats. Deine Welt.</div></div></div>
     <h1 id="authTitle">Schön, dass du da bist.</h1>
     <p id="authSubtitle">Melde dich mit deinem Benutzernamen an oder erstelle einen Account.</p>
     <div id="authMessage" class="message hidden"></div>
@@ -38,7 +38,7 @@
 </div>
 <div id="app" class="hidden">
   <aside class="rail">
-    <div class="brand"><div class="brand-mark"><img src="./icon.svg?v=3" alt="WasGeht"></div><div><div class="brand-name">WasGeht</div><div class="tagline">Deine Chats. Deine Welt.</div></div></div>
+    <div class="brand"><div class="brand-mark"><img src="./icon.svg?v=4" alt="WasGeht"></div><div><div class="brand-name">WasGeht</div><div class="tagline">Deine Chats. Deine Welt.</div></div></div>
     <nav class="nav" id="nav">
       <button class="active" data-view="chats"><span class="ico">▣</span><span class="nav-label">Chats</span></button>
       <button data-view="contacts"><span class="ico">♙</span><span class="nav-label">Kontakte</span></button>
@@ -47,7 +47,7 @@
       <button data-view="profile"><span class="ico">⚙</span><span class="nav-label">Profil</span></button>
       <button data-view="admin" id="adminNav" class="hidden"><span class="ico">♛</span><span class="nav-label">Admin</span></button>
     </nav>
-    <div class="rail-bottom"><div class="avatar" id="miniAvatar"><img src="./icon.svg?v=3" alt="WasGeht"></div><div class="user-mini"><strong id="miniName">Nutzer</strong><span class="muted small">Mein Konto</span></div><button class="ghost" id="logout" title="Abmelden">↪</button></div>
+    <div class="rail-bottom"><div class="avatar" id="miniAvatar"><img src="./icon.svg?v=4" alt="WasGeht"></div><div class="user-mini"><strong id="miniName">Nutzer</strong><span class="muted small">Mein Konto</span></div><button class="ghost" id="logout" title="Abmelden">↪</button></div>
   </aside>
   <section class="list-panel" id="listPanel">
     <div class="list-head"><div class="mobile-top"><div class="brand-mark"><img src="./icon.svg?v=4" alt="WasGeht"></div><strong>WasGeht</strong></div><h2 id="listTitle">Chats</h2><input id="listSearch" class="searchbox" placeholder="Suchen …"></div>
@@ -119,7 +119,7 @@ async function boot(){
   if(!profile){const uname=user.user_metadata?.username||user.email.split('@')[0];const ins=await sb.from('wg_profiles').insert({user_id:user.id,username:uname}).select().single();if(ins.error)throw ins.error;profile=ins.data}
   if(profile.is_banned){await sb.auth.signOut();state.user=null;throw new Error('Dieses Konto ist gesperrt.')}
   state.profile=profile;const {data:adm,error:adminError}=await sb.from('wg_admins').select('user_id').eq('user_id',user.id).maybeSingle();if(adminError)throw adminError;state.admin=!!adm;
-  $('#auth').classList.add('hidden');$('#app').classList.remove('hidden');$('#miniName').textContent=profile.username;$('#miniAvatar').innerHTML=profile.avatar_path?'':'<img src="./icon.svg?v=3" alt="WasGeht">';
+  $('#auth').classList.add('hidden');$('#app').classList.remove('hidden');$('#miniName').textContent=profile.username;$('#miniAvatar').innerHTML=profile.avatar_path?'':'<img src="./icon.svg?v=4" alt="WasGeht">';
   if(profile.avatar_path){const {data:av}=await sb.storage.from('wg-media').createSignedUrl(profile.avatar_path,3600);if(av?.signedUrl)$('#miniAvatar').innerHTML='<img src="'+av.signedUrl+'" alt="">'}
   $('#adminNav').classList.toggle('hidden',!state.admin);await heartbeat();await loadView('chats');subscribeGlobal();if(!window.__wgHeartbeat)window.__wgHeartbeat=setInterval(heartbeat,45000);
  }catch(e){state.user=null;throw e}finally{state.booting=false}
