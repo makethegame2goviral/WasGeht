@@ -579,6 +579,25 @@ async function renderAdmin(){if(!state.admin){$('#main').innerHTML='<div class="
 function adminEditUser(id,u){showModal('<div class="modal"><h3>Account verwalten</h3><div class="field"><label>Benutzername</label><input id="adminUsername" value="'+safe(u.username)+'"></div><label><input type="checkbox" id="adminBanned" '+(u.is_banned?'checked':'')+'> Account sperren</label><div class="modal-actions"><button class="ghost" id="closeModal">Abbrechen</button><button class="primary" id="adminSave">Speichern</button></div></div>');$('#closeModal').onclick=closeModal;$('#adminSave').onclick=async()=>{const {error}=await sb.rpc('wg_admin_update_profile',{p_user_id:id,p_username:$('#adminUsername').value.trim(),p_is_banned:$('#adminBanned').checked});if(error)toast(error.message);else{closeModal();renderAdmin()}}}
 async function adminViewGroup(id){const {data:c}=await sb.from('wg_conversations').select('*').eq('id',id).single();const {data:msgs}=await sb.from('wg_messages').select('*').eq('conversation_id',id).order('created_at',{ascending:true}).limit(150);const ids=[...new Set((msgs||[]).map(m=>m.sender_id))];const prof=ids.length?await sb.from('wg_profiles').select('user_id,username').in('user_id',ids):{data:[]};const pmap=Object.fromEntries((prof.data||[]).map(p=>[p.user_id,p.username]));showModal('<div class="modal"><h3>Gruppe: '+safe(c?.title)+'</h3><p class="muted small">Gruppennachrichten · '+(msgs||[]).length+' angezeigt</p>'+((msgs||[]).map(m=>'<div class="card"><strong>'+safe(pmap[m.sender_id]||'Nutzer')+'</strong><p>'+safe(m.deleted_at?'Nachricht gelöscht':m.body)+'</p><span class="muted small">'+new Date(m.created_at).toLocaleString('de-DE')+'</span></div>').join('')||'<p class="muted">Keine Nachrichten.</p>')+'<div class="modal-actions"><button class="primary" id="closeModal">Schließen</button></div></div>');$('#closeModal').onclick=closeModal}
 let callChannelPromise=null;
+let cachedCallIceServers=null;
+async function getCallIceServers(){
+ if(cachedCallIceServers)return cachedCallIceServers;
+ const fallback=[
+  {urls:'stun:stun.l.google.com:19302'},
+  {urls:'stun:stun1.l.google.com:19302'},
+  {urls:'stun:stun2.l.google.com:19302'}
+ ];
+ try{
+  const {data,error}=await sb.functions.invoke('wg-turn-credentials',{method:'GET'});
+  if(error)throw error;
+  if(Array.isArray(data?.iceServers)&&data.iceServers.length)cachedCallIceServers=data.iceServers;
+  else cachedCallIceServers=fallback;
+ }catch(e){
+  console.warn('TURN-Konfiguration nicht verfügbar; STUN-Fallback wird verwendet.',e);
+  cachedCallIceServers=fallback;
+ }
+ return cachedCallIceServers;
+}
 async function ensureCallChannel(conversationId){
  if(state.callChannel&&state.callChannel.topic==='realtime:wg-call-'+conversationId&&callChannelPromise)return callChannelPromise;
  if(state.callChannel&&state.callChannel.topic==='realtime:wg-call-'+conversationId)return state.callChannel;
@@ -598,7 +617,8 @@ async function ensureCallChannel(conversationId){
     if(state.call){await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,end:true}});return}
     const video=!!payload.video;
     if(!confirm((video?'Videoanruf':'Sprachanruf')+' annehmen?')){await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,end:true}});return}
-    const call={pc:new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:stun2.l.google.com:19302'}],iceCandidatePoolSize:6,bundlePolicy:'max-bundle'}),stream:null,remoteStream:new MediaStream(),video,pendingCandidates:[]};
+    const iceServers=await getCallIceServers();
+    const call={pc:new RTCPeerConnection({iceServers,iceCandidatePoolSize:6,bundlePolicy:'max-bundle'}),stream:null,remoteStream:new MediaStream(),video,pendingCandidates:[]};
     state.call=call;state.callChannel=channel;setupCallPeer(call,channel);
     const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1}},video:video?{facingMode:'user'}:false});
     call.stream=stream;const mic=stream.getAudioTracks()[0];if(mic){mic.enabled=true;mic.applyConstraints({echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1}}).catch(()=>{});}stream.getTracks().forEach(t=>call.pc.addTrack(t,stream));
@@ -651,7 +671,8 @@ async function startCall(video){
  try{
   const channel=await ensureCallChannel(state.conversation.id);
   const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1}},video:video?{facingMode:'user'}:false});
-  const call={pc:new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:stun2.l.google.com:19302'}],iceCandidatePoolSize:6,bundlePolicy:'max-bundle'}),stream,remoteStream:new MediaStream(),video,pendingCandidates:[]};
+  const iceServers=await getCallIceServers();
+  const call={pc:new RTCPeerConnection({iceServers,iceCandidatePoolSize:6,bundlePolicy:'max-bundle'}),stream,remoteStream:new MediaStream(),video,pendingCandidates:[]};
   state.call=call;state.callChannel=channel;setupCallPeer(call,channel);
   const mic=stream.getAudioTracks()[0];if(mic){mic.enabled=true;mic.applyConstraints({echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1}}).catch(()=>{});}stream.getTracks().forEach(t=>call.pc.addTrack(t,stream));
   $('#localVideo').srcObject=stream;$('#localVideo').muted=true;
