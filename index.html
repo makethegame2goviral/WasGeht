@@ -114,7 +114,70 @@ async function loadChatList(){
  $('#listContent').querySelectorAll('[data-conv]').forEach(el=>el.addEventListener('click',()=>openConversation(el.dataset.conv)));
 }
 async function openConversation(id){const c=state.conversations.find(x=>x.id===id)||(await sb.from('wg_conversations').select('*').eq('id',id).single()).data;if(!c)return;state.conversation=c;$('#app').classList.add('chat-open');const members=await sb.from('wg_conversation_members').select('user_id,role').eq('conversation_id',id);const other=(members.data||[]).find(x=>x.user_id!==state.user.id);const op=other?(await sb.from('wg_profiles').select('username,last_seen').eq('user_id',other.user_id).maybeSingle()).data:null;const title=c.kind==='group'?c.title:(op?.username||'Einzelchat');const {data:groupAvatarData}=c.kind==='group'&&c.avatar_path?await sb.storage.from('wg-media').createSignedUrl(c.avatar_path,3600):{data:null};const avatarMarkup=c.kind==='group'?(groupAvatarData?.signedUrl?'<img src="'+safe(groupAvatarData.signedUrl)+'" alt="">':'👥'):safe(initials(title));const online=op?.last_seen&&Date.now()-new Date(op.last_seen).getTime()<90000;$('#main').innerHTML='<div class="chat-head"><button class="ghost mobile-back" style="display:none" id="backChats">‹</button><div class="avatar">'+avatarMarkup+'</div><div class="head-meta"><strong>'+safe(title)+'</strong><div class="muted">'+(c.kind==='group'?'Gruppe · '+(members.data||[]).length+' Mitglieder':(online?'<span class="dot"></span>Online':'Offline'))+'</div></div><div class="chat-actions">'+(c.kind==='dm'?'<button class="ghost" id="voiceCall" title="Sprachanruf">📞</button><button class="ghost" id="videoCall" title="Videoanruf">▣</button>':'<button class="ghost" id="groupInfo" title="Gruppeninfo">ⓘ</button>')+'<button class="ghost" id="chatMore" title="Mehr">⋯</button></div></div><div class="messages" id="messages"></div><div class="composer"><button class="ghost" id="recordVoice" title="Sprachnachricht aufnehmen">🎙</button><button class="ghost" id="attach" title="Datei senden">＋</button><input id="fileInput" type="file" accept="image/*,video/mp4,video/webm,audio/*" class="hidden"><textarea id="messageInput" rows="1" placeholder="Nachricht schreiben …"></textarea><button class="primary" id="sendMessage" title="Senden">➤</button></div>';$('#backChats').addEventListener('click',()=>{$('#app').classList.remove('chat-open');loadView('chats')});$('#sendMessage').addEventListener('click',sendMessage);$('#messageInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});$('#attach').addEventListener('click',()=>$('#fileInput').click());$('#recordVoice').addEventListener('click',recordVoiceMessage);$('#fileInput').addEventListener('change',uploadMessageFile);if(c.kind==='group')$('#groupInfo').addEventListener('click',()=>showGroupInfo(c));else{$('#voiceCall').addEventListener('click',()=>startCall(false));$('#videoCall').addEventListener('click',()=>startCall(true))}$('#chatMore').addEventListener('click',()=>showChatMore(c,other));await loadMessages();if(state.realtime)sb.removeChannel(state.realtime);state.realtime=sb.channel('wg-msg-'+id).on('postgres_changes',{event:'*',schema:'public',table:'wg_messages',filter:'conversation_id=eq.'+id},payload=>{loadMessages();}).subscribe()}
-async function loadMessages(){if(!state.conversation)return;const {data,error}=await sb.from('wg_messages').select('*').eq('conversation_id',state.conversation.id).order('created_at',{ascending:true}).limit(250);if(error){toast(error.message);return}state.messages=data||[];const ids=[...new Set(state.messages.map(m=>m.sender_id))];const profiles=ids.length?await sb.from('wg_profiles').select('user_id,username').in('user_id',ids):{data:[]};const pmap=Object.fromEntries((profiles.data||[]).map(p=>[p.user_id,p.username]));const receiptRows=state.messages.length?(await sb.from('wg_message_receipts').select('message_id,delivered_at,read_at,user_id').in('message_id',state.messages.map(m=>m.id)).neq('user_id',state.user.id)).data||[]:[];const receiptMap=Object.fromEntries(receiptRows.map(r=>[r.message_id,r]));const mediaUrls={};for(const m of state.messages){if(m.media_path){const {data}=await sb.storage.from('wg-media').createSignedUrl(m.media_path,3600);if(data?.signedUrl)mediaUrls[m.id]=data.signedUrl}}const el=$('#messages');const atBottom=el.scrollHeight-el.scrollTop-el.clientHeight<100;el.innerHTML=state.messages.map(m=>{const mine=m.sender_id===state.user.id;let content=safe(m.body);if(m.deleted_at)content='<i class="muted">Nachricht gelöscht</i>';else if(m.media_path&&mediaUrls[m.id]){const u=mediaUrls[m.id];if(m.message_type==='image')content='<img src="'+u+'" alt="Bild">';else if(m.message_type==='video')content='<video controls src="'+u+'"></video>';else if(m.message_type==='audio')content='<audio controls src="'+u+'"></audio>'+(m.body?'<div>'+safe(m.body)+'</div>':'')}const clock=new Date(m.created_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});const receipt=mine?(receiptMap[m.id]?.read_at?' · ✓✓ Gelesen':receiptMap[m.id]?.delivered_at?' · ✓✓ Zugestellt':' · ✓ Gesendet'):'';const time=clock+receipt;return '<div class="bubble-row '+(mine?'mine':'')+'"><div class="bubble">'+(!mine?'<div class="sender">'+safe(pmap[m.sender_id]||'Nutzer')+'</div>':'')+'<div class="body">'+content+'</div><div class="time">'+time+(m.edited_at?' · bearbeitet':'')+'</div>'+(mine&&!m.deleted_at?'<div class="actions"><button class="ghost" data-edit="'+m.id+'">Bearbeiten</button><button class="ghost" data-delete="'+m.id+'">Löschen</button></div>':'')+'<div class="actions"><button class="ghost" data-react="'+m.id+'">❤️</button><button class="ghost" data-reply="'+m.id+'">↩</button></div></div></div>'}).join('');el.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>editMessage(b.dataset.edit)));el.querySelectorAll('[data-delete]').forEach(b=>b.addEventListener('click',()=>deleteMessage(b.dataset.delete)));el.querySelectorAll('[data-react]').forEach(b=>b.addEventListener('click',()=>reactMessage(b.dataset.react)));el.querySelectorAll('[data-reply]').forEach(b=>b.addEventListener('click',()=>{state.replyTo=b.dataset.reply;$('#messageInput').placeholder='Antwort schreiben …';$('#messageInput').focus()}));if(atBottom)el.scrollTop=el.scrollHeight;markRead()}
+async function loadMessages(){
+ if(!state.conversation)return;
+ const {data,error}=await sb.from('wg_messages').select('*').eq('conversation_id',state.conversation.id).order('created_at',{ascending:true}).limit(250);
+ if(error){toast(error.message);return}
+ state.messages=data||[];
+ const ids=[...new Set(state.messages.map(m=>m.sender_id))];
+ const [profiles,pinRows]=await Promise.all([
+  ids.length?sb.from('wg_profiles').select('user_id,username').in('user_id',ids):Promise.resolve({data:[]}),
+  sb.from('wg_message_pins').select('message_id,pinned_by,created_at').eq('conversation_id',state.conversation.id).order('created_at',{ascending:false})
+ ]);
+ const pmap=Object.fromEntries((profiles.data||[]).map(p=>[p.user_id,p.username]));
+ const receiptRows=state.messages.length?(await sb.from('wg_message_receipts').select('message_id,delivered_at,read_at,user_id').in('message_id',state.messages.map(m=>m.id)).neq('user_id',state.user.id)).data||[]:[];
+ const receiptMap=Object.fromEntries(receiptRows.map(r=>[r.message_id,r]));
+ const mediaUrls={};for(const m of state.messages){if(m.media_path){const {data}=await sb.storage.from('wg-media').createSignedUrl(m.media_path,3600);if(data?.signedUrl)mediaUrls[m.id]=data.signedUrl}}
+ const pinnedIds=(pinRows.data||[]).map(x=>x.message_id);
+ const pinnedMessages=pinnedIds.length?(await sb.from('wg_messages').select('id,body,sender_id,deleted_at').in('id',pinnedIds)).data||[]:[];
+ const pinnedNames=pinnedMessages.length?(await sb.from('wg_profiles').select('user_id,username').in('user_id',[...new Set(pinnedMessages.map(m=>m.sender_id))])).data||[]:[];
+ const pinnedMap=Object.fromEntries(pinnedNames.map(p=>[p.user_id,p.username]));
+ const banner=pinnedMessages.length?'<div class="card" style="margin:10px 12px;padding:10px"><strong>📌 Angeheftete Nachrichten</strong>'+pinnedMessages.map(m=>'<div class="card-row"><span class="grow">'+safe(pinnedMap[m.sender_id]||'Nutzer')+': '+safe(m.deleted_at?'Nachricht gelöscht':m.body||'Anhang')+'</span><button class="ghost" data-unpin="'+m.id+'">Lösen</button></div>').join('')+'</div>':'';
+ const el=$('#messages');const atBottom=el.scrollHeight-el.scrollTop-el.clientHeight<100;
+ el.innerHTML=banner+state.messages.map(m=>{
+  const mine=m.sender_id===state.user.id;let content=safe(m.body);
+  if(m.deleted_at)content='<i class="muted">Nachricht gelöscht</i>';
+  else if(m.media_path&&mediaUrls[m.id]){const u=mediaUrls[m.id];if(m.message_type==='image')content='<img src="'+u+'" alt="Bild">';else if(m.message_type==='video')content='<video controls src="'+u+'"></video>';else if(m.message_type==='audio')content='<audio controls src="'+u+'"></audio>'+(m.body?'<div>'+safe(m.body)+'</div>':'')}
+  const clock=new Date(m.created_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  const receipt=mine?(receiptMap[m.id]?.read_at?' · ✓✓ Gelesen':receiptMap[m.id]?.delivered_at?' · ✓✓ Zugestellt':' · ✓ Gesendet'):'';
+  const time=clock+receipt;
+  const pinned=pinnedIds.includes(m.id);
+  return '<div class="bubble-row '+(mine?'mine':'')+'"><div class="bubble">'+(!mine?'<div class="sender">'+safe(pmap[m.sender_id]||'Nutzer')+'</div>':'')+'<div class="body">'+content+'</div><div class="time">'+time+(m.edited_at?' · bearbeitet':'')+'</div>'+(mine&&!m.deleted_at?'<div class="actions"><button class="ghost" data-edit="'+m.id+'">Bearbeiten</button><button class="ghost" data-delete="'+m.id+'">Löschen</button></div>':'')+'<div class="actions"><button class="ghost" data-react="'+m.id+'">❤️</button><button class="ghost" data-reply="'+m.id+'">↩ Antworten</button>'+(!m.deleted_at?'<button class="ghost" data-forward="'+m.id+'">Weiterleiten</button><button class="ghost" data-pin="'+m.id+'">'+(pinned?'📌 Lösen':'📌 Anheften')+'</button>':'')+'</div></div></div>'
+ }).join('');
+ el.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>editMessage(b.dataset.edit)));
+ el.querySelectorAll('[data-delete]').forEach(b=>b.addEventListener('click',()=>deleteMessage(b.dataset.delete)));
+ el.querySelectorAll('[data-react]').forEach(b=>b.addEventListener('click',()=>reactMessage(b.dataset.react)));
+ el.querySelectorAll('[data-reply]').forEach(b=>b.addEventListener('click',()=>{state.replyTo=b.dataset.reply;$('#messageInput').placeholder='Antwort schreiben …';$('#messageInput').focus()}));
+ el.querySelectorAll('[data-forward]').forEach(b=>b.addEventListener('click',()=>forwardMessage(b.dataset.forward)));
+ el.querySelectorAll('[data-pin]').forEach(b=>b.addEventListener('click',()=>toggleMessagePin(b.dataset.pin)));
+ el.querySelectorAll('[data-unpin]').forEach(b=>b.addEventListener('click',()=>toggleMessagePin(b.dataset.unpin)));
+ if(atBottom)el.scrollTop=el.scrollHeight;
+ markRead();
+}
+async function toggleMessagePin(id){
+ const existing=await sb.from('wg_message_pins').select('message_id').eq('message_id',id).maybeSingle();
+ let result;
+ if(existing.data)result=await sb.from('wg_message_pins').delete().eq('message_id',id);
+ else result=await sb.from('wg_message_pins').insert({message_id:id,conversation_id:state.conversation.id,pinned_by:state.user.id});
+ if(result.error)toast(result.error.message);else loadMessages();
+}
+async function forwardMessage(id){
+ const m=state.messages.find(x=>x.id===id);if(!m||m.deleted_at)return;
+ const {data:members}=await sb.from('wg_conversation_members').select('conversation_id').eq('user_id',state.user.id);
+ const ids=(members||[]).map(x=>x.conversation_id);
+ const {data:convs}=ids.length?await sb.from('wg_conversations').select('id,kind,title').in('id',ids):{data:[]};
+ const choices=(convs||[]).filter(c=>c.id!==state.conversation.id);
+ if(!choices.length){toast('Du hast noch keinen anderen Chat.');return}
+ const options=choices.map(c=>'<option value="'+c.id+'">'+safe(c.kind==='group'?c.title:'Einzelchat')+'</option>').join('');
+ showModal('<div class="modal"><h3>Nachricht weiterleiten</h3><div class="field"><label>Chat auswählen</label><select id="forwardTarget">'+options+'</select></div><div class="modal-actions"><button class="ghost" id="cancelForward">Abbrechen</button><button class="primary" id="confirmForward">Weiterleiten</button></div></div>');
+ $('#cancelForward').onclick=closeModal;
+ $('#confirmForward').onclick=async()=>{
+  const target=$('#forwardTarget').value;
+  const {error}=await sb.from('wg_messages').insert({conversation_id:target,sender_id:state.user.id,body:m.body||'',message_type:m.message_type||'text',media_path:m.media_path||null,reply_to:null});
+  if(error)toast(error.message);else toast('Nachricht weitergeleitet');
+  closeModal();
+ };
+}
 async function markRead(){const unread=state.messages.filter(m=>m.sender_id!==state.user.id);for(const m of unread){await sb.from('wg_message_receipts').upsert({message_id:m.id,user_id:state.user.id,delivered_at:new Date().toISOString(),read_at:new Date().toISOString()},{onConflict:'message_id,user_id'}).catch(()=>{})}}
 async function sendMessage(){const input=$('#messageInput');const body=input.value.trim();if(!body||!state.conversation)return;input.value='';const payload={conversation_id:state.conversation.id,sender_id:state.user.id,body,message_type:'text',reply_to:state.replyTo};state.replyTo=null;input.placeholder='Nachricht schreiben …';const {error}=await sb.from('wg_messages').insert(payload);if(error){toast(error.message);input.value=body}else loadMessages()}
 async function editMessage(id){const m=state.messages.find(x=>x.id===id);const body=prompt('Nachricht bearbeiten:',m?.body||'');if(body===null)return;const {error}=await sb.from('wg_messages').update({body:body,edited_at:new Date().toISOString()}).eq('id',id);if(error)toast(error.message);else loadMessages()}
