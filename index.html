@@ -120,11 +120,13 @@ async function loadMessages(){
  if(error){toast(error.message);return}
  state.messages=data||[];
  const ids=[...new Set(state.messages.map(m=>m.sender_id))];
- const [profiles,pinRows]=await Promise.all([
+ const [profiles,pinRows,reactionRows]=await Promise.all([
   ids.length?sb.from('wg_profiles').select('user_id,username').in('user_id',ids):Promise.resolve({data:[]}),
-  sb.from('wg_message_pins').select('message_id,pinned_by,created_at').eq('conversation_id',state.conversation.id).order('created_at',{ascending:false})
+  sb.from('wg_message_pins').select('message_id,pinned_by,created_at').eq('conversation_id',state.conversation.id).order('created_at',{ascending:false}),
+  state.messages.length?sb.from('wg_reactions').select('message_id,user_id,emoji').in('message_id',state.messages.map(m=>m.id)):Promise.resolve({data:[]})
  ]);
  const pmap=Object.fromEntries((profiles.data||[]).map(p=>[p.user_id,p.username]));
+ const reactionMap={};(reactionRows.data||[]).forEach(r=>{(reactionMap[r.message_id]??=[]).push(r)});
  const receiptRows=state.messages.length?(await sb.from('wg_message_receipts').select('message_id,delivered_at,read_at,user_id').in('message_id',state.messages.map(m=>m.id)).neq('user_id',state.user.id)).data||[]:[];
  const receiptMap=Object.fromEntries(receiptRows.map(r=>[r.message_id,r]));
  const mediaUrls={};for(const m of state.messages){if(m.media_path){const {data}=await sb.storage.from('wg-media').createSignedUrl(m.media_path,3600);if(data?.signedUrl)mediaUrls[m.id]=data.signedUrl}}
@@ -142,11 +144,11 @@ async function loadMessages(){
   const receipt=mine?(receiptMap[m.id]?.read_at?' · ✓✓ Gelesen':receiptMap[m.id]?.delivered_at?' · ✓✓ Zugestellt':' · ✓ Gesendet'):'';
   const time=clock+receipt;
   const pinned=pinnedIds.includes(m.id);
-  return '<div class="bubble-row '+(mine?'mine':'')+'"><div class="bubble">'+(!mine?'<div class="sender">'+safe(pmap[m.sender_id]||'Nutzer')+'</div>':'')+'<div class="body">'+content+'</div><div class="time">'+time+(m.edited_at?' · bearbeitet':'')+'</div>'+(mine&&!m.deleted_at?'<div class="actions"><button class="ghost" data-edit="'+m.id+'">Bearbeiten</button><button class="ghost" data-delete="'+m.id+'">Löschen</button></div>':'')+'<div class="actions"><button class="ghost" data-react="'+m.id+'">❤️</button><button class="ghost" data-reply="'+m.id+'">↩ Antworten</button>'+(!m.deleted_at?'<button class="ghost" data-forward="'+m.id+'">Weiterleiten</button><button class="ghost" data-pin="'+m.id+'">'+(pinned?'📌 Lösen':'📌 Anheften')+'</button>':'')+'</div></div></div>'
+  return '<div class="bubble-row '+(mine?'mine':'')+'"><div class="bubble">'+(!mine?'<div class="sender">'+safe(pmap[m.sender_id]||'Nutzer')+'</div>':'')+'<div class="body">'+content+'</div><div class="time">'+time+(m.edited_at?' · bearbeitet':'')+'</div>'+(mine&&!m.deleted_at?'<div class="actions"><button class="ghost" data-edit="'+m.id+'">Bearbeiten</button><button class="ghost" data-delete="'+m.id+'">Löschen</button></div>':'')+'<div class="actions">'+(reactionMap[m.id]||[]).reduce((out,r)=>{const same=(reactionMap[m.id]||[]).filter(x=>x.emoji===r.emoji).length;return out.includes('data-emoji="'+r.emoji+'"')?out:out+'<button class="ghost" data-react="'+m.id+'" data-emoji="'+safe(r.emoji)+'">'+safe(r.emoji)+' '+same+'</button>'},'')+'<button class="ghost" data-add-reaction="'+m.id+'">☺ Reaktion</button><button class="ghost" data-reply="'+m.id+'">↩ Antworten</button>'+(!m.deleted_at?'<button class="ghost" data-forward="'+m.id+'">Weiterleiten</button><button class="ghost" data-pin="'+m.id+'">'+(pinned?'📌 Lösen':'📌 Anheften')+'</button>':'')+'</div></div></div>'
  }).join('');
  el.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>editMessage(b.dataset.edit)));
  el.querySelectorAll('[data-delete]').forEach(b=>b.addEventListener('click',()=>deleteMessage(b.dataset.delete)));
- el.querySelectorAll('[data-react]').forEach(b=>b.addEventListener('click',()=>reactMessage(b.dataset.react)));
+ el.querySelectorAll('[data-react]').forEach(b=>b.addEventListener('click',()=>reactMessage(b.dataset.react,b.dataset.emoji)));el.querySelectorAll('[data-add-reaction]').forEach(b=>b.addEventListener('click',()=>chooseReaction(b.dataset.addReaction)));
  el.querySelectorAll('[data-reply]').forEach(b=>b.addEventListener('click',()=>{state.replyTo=b.dataset.reply;$('#messageInput').placeholder='Antwort schreiben …';$('#messageInput').focus()}));
  el.querySelectorAll('[data-forward]').forEach(b=>b.addEventListener('click',()=>forwardMessage(b.dataset.forward)));
  el.querySelectorAll('[data-pin]').forEach(b=>b.addEventListener('click',()=>toggleMessagePin(b.dataset.pin)));
@@ -182,7 +184,17 @@ async function markRead(){const unread=state.messages.filter(m=>m.sender_id!==st
 async function sendMessage(){const input=$('#messageInput');const body=input.value.trim();if(!body||!state.conversation)return;input.value='';const payload={conversation_id:state.conversation.id,sender_id:state.user.id,body,message_type:'text',reply_to:state.replyTo};state.replyTo=null;input.placeholder='Nachricht schreiben …';const {error}=await sb.from('wg_messages').insert(payload);if(error){toast(error.message);input.value=body}else loadMessages()}
 async function editMessage(id){const m=state.messages.find(x=>x.id===id);const body=prompt('Nachricht bearbeiten:',m?.body||'');if(body===null)return;const {error}=await sb.from('wg_messages').update({body:body,edited_at:new Date().toISOString()}).eq('id',id);if(error)toast(error.message);else loadMessages()}
 async function deleteMessage(id){if(!confirm('Nachricht für alle in diesem Chat löschen?'))return;const {error}=await sb.from('wg_messages').update({body:'',deleted_at:new Date().toISOString()}).eq('id',id);if(error)toast(error.message);else loadMessages()}
-async function reactMessage(id){const {error}=await sb.from('wg_reactions').upsert({message_id:id,user_id:state.user.id,emoji:'❤️'},{onConflict:'message_id,user_id,emoji'});if(error)toast(error.message);else toast('Reaktion hinzugefügt')}
+async function reactMessage(id,emoji='❤️'){
+ const {data:existing}=await sb.from('wg_reactions').select('message_id').eq('message_id',id).eq('user_id',state.user.id).eq('emoji',emoji).maybeSingle();
+ const result=existing?await sb.from('wg_reactions').delete().eq('message_id',id).eq('user_id',state.user.id).eq('emoji',emoji):await sb.from('wg_reactions').insert({message_id:id,user_id:state.user.id,emoji});
+ if(result.error)toast(result.error.message);else loadMessages();
+}
+function chooseReaction(id){
+ const emojis=['👍','❤️','😂','😮','😢','🙏','🔥','🎉'];
+ showModal('<div class="modal"><h3>Reaktion auswählen</h3><div class="actions">'+emojis.map(e=>'<button class="secondary" data-pick-emoji="'+e+'">'+e+'</button>').join('')+'</div><div class="modal-actions"><button class="ghost" id="closeEmoji">Schließen</button></div></div>');
+ $('#closeEmoji').onclick=closeModal;
+ document.querySelectorAll('[data-pick-emoji]').forEach(b=>b.onclick=()=>{closeModal();reactMessage(id,b.dataset.pickEmoji)});
+}
 async function recordVoiceMessage(){
   if(state.recorder?.state==='recording'){state.recorder.stop();$('#recordVoice').textContent='🎙';return}
   if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){toast('Sprachnachrichten werden von diesem Browser nicht unterstützt.');return}
