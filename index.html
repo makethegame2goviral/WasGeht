@@ -665,88 +665,49 @@ function wireCallButtons(stream,video){
  $('#cameraCall').style.display=video?'':'none';
 }
 function listenForCalls(conversationId){
- if(state.incomingCallChannel)sb.removeChannel(state.incomingCallChannel);
- const channel=sb.channel('wg-call-'+conversationId,{config:{broadcast:{self:false}}});
- state.incomingCallChannel=channel;
- channel.on('broadcast',{event:'signal'},async({payload})=>{
-  if(!payload||payload.from===state.user.id)return;
-  try{
-   if(payload.end){if(state.call)await endCall(false);return}
-   if(payload.candidate){
-    if(state.call?.pc?.remoteDescription)await state.call.pc.addIceCandidate(payload.candidate);
-    else if(state.call)state.call.pendingCandidates.push(payload.candidate);
-    return;
-   }
-   if(!payload.description)return;
-   if(payload.description.type==='offer'){
-    if(state.call){await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,end:true}});return}
-    const accept=confirm((payload.video?'Videoanruf':'Sprachanruf')+' annehmen?');
-    if(!accept){await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,end:true}});return}
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:!!payload.video});
-    const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-    stream.getTracks().forEach(t=>pc.addTrack(t,stream));
-    state.call={pc,stream,video:!!payload.video,pendingCandidates:[]};state.callChannel=channel;
-    await pc.setRemoteDescription(payload.description);
-    for(const candidate of state.call.pendingCandidates.splice(0))await pc.addIceCandidate(candidate);
-    const answer=await pc.createAnswer();await pc.setLocalDescription(answer);
-    await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,description:pc.localDescription}});
-    $('#localVideo').srcObject=stream;$('#remoteVideo').srcObject=null;
-    $('#localVideo').style.display=payload.video?'block':'none';$('#remoteVideo').style.display=payload.video?'block':'none';
-    $('#callOverlay').classList.remove('hidden');$('#callTitle').textContent=payload.video?'Videoanruf':'Sprachanruf';$('#callState').textContent='Verbinde …';
-    pc.onicecandidate=e=>{if(e.candidate)channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,candidate:e.candidate}})};
-    pc.ontrack=e=>{$('#remoteVideo').srcObject=e.streams[0];$('#callState').textContent='Verbunden'};
-    $('#hangupCall').onclick=()=>endCall(true);
-    $('#muteCall').onclick=()=>{const t=stream.getAudioTracks()[0];if(t)t.enabled=!t.enabled;$('#muteCall').textContent=t?.enabled?'🎙':'🔇'};
-    $('#cameraCall').onclick=()=>{const t=stream.getVideoTracks()[0];if(t)t.enabled=!t.enabled;$('#cameraCall').textContent=t?.enabled?'📷':'🚫'};
-   }else if(payload.description.type==='answer'&&state.call?.pc){
-    await state.call.pc.setRemoteDescription(payload.description);
-    for(const candidate of state.call.pendingCandidates.splice(0))await state.call.pc.addIceCandidate(candidate);
-    $('#callState').textContent='Verbindung wird hergestellt …';
-   }
-  }catch(e){toast('Anrufproblem: '+(e?.message||'Verbindung fehlgeschlagen'));if(state.call)await endCall(false)}
- });
- channel.subscribe();
+ ensureCallChannel(conversationId).catch(e=>toast(e.message));
 }
 async function startCall(video){
  if(!state.conversation||state.conversation.kind!=='dm')return;
  if(state.call){toast('Du bist bereits in einem Anruf.');return}
  try{
-  const stream=await navigator.mediaDevices.getUserMedia({audio:true,video});
-  const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-  stream.getTracks().forEach(t=>pc.addTrack(t,stream));
-  const channel=state.incomingCallChannel||sb.channel('wg-call-'+state.conversation.id,{config:{broadcast:{self:false}}});
-  if(!state.incomingCallChannel){
-   state.incomingCallChannel=channel;
-   channel.on('broadcast',{event:'signal'},async({payload})=>{
-    if(!payload||payload.from===state.user.id)return;
-    try{
-     if(payload.end){if(state.call)await endCall(false);return}
-     if(payload.candidate){if(state.call?.pc?.remoteDescription)await state.call.pc.addIceCandidate(payload.candidate);else if(state.call)state.call.pendingCandidates.push(payload.candidate);return}
-     if(payload.description?.type==='answer'&&state.call?.pc){await state.call.pc.setRemoteDescription(payload.description);for(const c of state.call.pendingCandidates.splice(0))await state.call.pc.addIceCandidate(c);$('#callState').textContent='Verbunden'}
-    }catch(e){toast('Anrufverbindung fehlgeschlagen: '+e.message)}
-   });
-   await new Promise(resolve=>channel.subscribe(status=>{if(status==='SUBSCRIBED')resolve()}));
-  }
-  state.call={pc,stream,video,pendingCandidates:[]};state.callChannel=channel;
-  $('#localVideo').srcObject=stream;$('#remoteVideo').srcObject=null;
-  $('#remoteVideo').style.display=video?'block':'none';$('#localVideo').style.display=video?'block':'none';
-  $('#callOverlay').classList.remove('hidden');$('#callTitle').textContent=video?'Videoanruf':'Sprachanruf';$('#callState').textContent='Anruf wird gestartet …';
-  pc.onicecandidate=e=>{if(e.candidate)channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,candidate:e.candidate}})};
-  pc.ontrack=e=>{$('#remoteVideo').srcObject=e.streams[0];$('#callState').textContent='Verbunden'};
-  const offer=await pc.createOffer();await pc.setLocalDescription(offer);
-  await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,description:pc.localDescription,video}});
-  $('#hangupCall').onclick=()=>endCall(true);
-  $('#muteCall').onclick=()=>{const t=stream.getAudioTracks()[0];if(t)t.enabled=!t.enabled;$('#muteCall').textContent=t?.enabled?'🎙':'🔇'};
-  $('#cameraCall').onclick=()=>{const t=stream.getVideoTracks()[0];if(t)t.enabled=!t.enabled;$('#cameraCall').textContent=t?.enabled?'📷':'🚫'};
- }catch(e){toast('Mikrofon/Kamera nicht verfügbar: '+(e?.message||'Bitte Berechtigungen prüfen.'))}
+  const channel=await ensureCallChannel(state.conversation.id);
+  const stream=await navigator.mediaDevices.getUserMedia({
+   audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},
+   video:video?{facingMode:'user'}:false
+  });
+  const call={pc:new RTCPeerConnection({iceServers:await getCallIceServers()}),stream,remoteStream:new MediaStream(),video,pendingCandidates:[]};
+  state.call=call;state.callChannel=channel;
+  setupCallPeer(call,channel);
+  stream.getTracks().forEach(track=>call.pc.addTrack(track,stream));
+  const local=$('#localVideo');
+  local.srcObject=stream;local.muted=true;local.autoplay=true;local.playsInline=true;
+  local.play().catch(()=>{});
+  const remote=$('#remoteVideo');
+  remote.srcObject=call.remoteStream;remote.muted=true;remote.autoplay=true;remote.playsInline=true;
+  remote.style.display=video?'block':'none';
+  local.style.display=video?'block':'none';
+  $('#callOverlay').classList.remove('hidden');
+  $('#callTitle').textContent=video?'Videoanruf':'Sprachanruf';
+  $('#callState').textContent='Verbinde …';
+  wireCallButtons(stream,video);
+  const offer=await call.pc.createOffer();
+  await call.pc.setLocalDescription(offer);
+  await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,description:call.pc.localDescription,video}});
+ }catch(e){
+  toast('Anrufproblem: '+(e?.message||'Verbindung fehlgeschlagen'));
+  if(state.call)await endCall(false);
+ }
 }
 async function endCall(sendEnd){
- const channel=state.callChannel;
+ const channel=state.callChannel,call=state.call;
  if(sendEnd&&channel)await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,end:true}});
- if(state.call?.stream)state.call.stream.getTracks().forEach(t=>t.stop());
- if(state.call?.pc)state.call.pc.close();
- state.call=null;state.callChannel=null;
- $('#localVideo').srcObject=null;$('#remoteVideo').srcObject=null;
+ if(call?.stream)call.stream.getTracks().forEach(track=>track.stop());
+ if(call?.pc)call.pc.close();
+ state.call=null;state.callChannel=null;state.pendingCallCandidates=[];
+ for(const id of ['localVideo','remoteVideo','remoteAudio']){
+  const el=$('#'+id);if(el){el.pause?.();el.srcObject=null;}
+ }
  $('#callOverlay').classList.add('hidden');
 }
 window.wgGo=loadView;
