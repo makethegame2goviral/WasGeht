@@ -605,7 +605,7 @@ function listenForCalls(conversationId){
     state.call=call;state.callChannel=channel;
     pc.onicecandidate=e=>{if(e.candidate)channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,candidate:e.candidate}})};
     pc.ontrack=e=>{
-     const remoteStream=e.streams?.[0]||new MediaStream([e.track]);
+     const remoteStream=state.call.remoteStream||(state.call.remoteStream=new MediaStream());if(!remoteStream.getTracks().some(t=>t.id===e.track.id))remoteStream.addTrack(e.track);
      if(remoteStream){
       $('#remoteVideo').srcObject=remoteStream;
       const audio=$('#remoteAudio');if(audio){audio.srcObject=remoteStream;audio.muted=false;audio.volume=1;audio.play().catch(()=>{});}
@@ -641,8 +641,8 @@ async function joinCallInvite(messageId){
  if(!row||row.deleted_at||!/^__WG_CALL_INVITE_(VIDEO|AUDIO)__/.test(row.body||'')){toast('Diese Anrufeinladung ist nicht mehr gültig.');return}
  if(state.call){toast('Du bist bereits in einem Anruf.');return}
  const video=row.body.includes('VIDEO');
- const channel=state.incomingCallChannel||sb.channel('wg-call-'+state.conversation.id,{config:{broadcast:{self:false}}});
- if(!state.incomingCallChannel){state.incomingCallChannel=channel;listenForCalls(state.conversation.id)}
+ if(!state.incomingCallChannel)listenForCalls(state.conversation.id);
+ const channel=state.incomingCallChannel;
  await channel.send({type:'broadcast',event:'join',payload:{from:state.user.id,inviteId:messageId}});
  toast('Anruf wird verbunden …');
 }
@@ -666,7 +666,7 @@ async function startCall(video){
   $('#remoteVideo').style.display=video?'block':'none';$('#localVideo').style.display=video?'block':'none';
   $('#callOverlay').classList.remove('hidden');$('#callTitle').textContent=video?'Videoanruf':'Sprachanruf';$('#callState').textContent='Warte auf „Anruf beitreten“ …';
   pc.onicecandidate=e=>{if(e.candidate)channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,candidate:e.candidate}})};
-  pc.ontrack=e=>{const remoteStream=e.streams?.[0]||new MediaStream([e.track]);$('#remoteVideo').srcObject=remoteStream;$('#remoteVideo').muted=true;const audio=$('#remoteAudio');if(audio){audio.srcObject=remoteStream;audio.muted=false;audio.volume=1;audio.play().catch(()=>{});}$('#remoteVideo').play().catch(()=>{});$('#callState').textContent='Verbunden';};
+  pc.ontrack=e=>{const remoteStream=state.call.remoteStream||(state.call.remoteStream=new MediaStream());if(!remoteStream.getTracks().some(t=>t.id===e.track.id))remoteStream.addTrack(e.track);$('#remoteVideo').srcObject=remoteStream;$('#remoteVideo').muted=true;const audio=$('#remoteAudio');if(audio){audio.srcObject=remoteStream;audio.muted=false;audio.volume=1;audio.play().catch(()=>{});}$('#remoteVideo').play().catch(()=>{});$('#callState').textContent='Verbunden';};
   channel.on('broadcast',{event:'join'},async({payload})=>{
    if(!payload||payload.from===state.user.id||payload.inviteId!==invite.id||call.offerSent)return;
    call.offerSent=true;
