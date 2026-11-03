@@ -476,8 +476,8 @@ async function ensureCallChannel(conversationId){
     if(!confirm((video?'Videoanruf':'Sprachanruf')+' annehmen?')){await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,end:true}});return}
     const call={pc:new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]}),stream:null,remoteStream:new MediaStream(),video,pendingCandidates:[]};
     state.call=call;state.callChannel=channel;setupCallPeer(call,channel);
-    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:video?{facingMode:'user'}:false});
-    call.stream=stream;stream.getTracks().forEach(t=>call.pc.addTrack(t,stream));
+    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1}},video:video?{facingMode:'user'}:false});
+    call.stream=stream;const mic=stream.getAudioTracks()[0];if(mic){mic.enabled=true;mic.applyConstraints({echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1}}).catch(()=>{});}stream.getTracks().forEach(t=>call.pc.addTrack(t,stream));
     $('#localVideo').srcObject=stream;$('#localVideo').muted=true;
     $('#remoteVideo').srcObject=call.remoteStream;$('#remoteVideo').muted=true;
     $('#localVideo').style.display=video?'block':'none';$('#remoteVideo').style.display=video?'block':'none';
@@ -501,6 +501,7 @@ async function ensureCallChannel(conversationId){
  try{return await callChannelPromise}catch(e){callChannelPromise=null;state.callChannel=null;throw e}
 }
 function setupCallPeer(call,channel){
+ const remoteAudio=$('#remoteAudio');remoteAudio.volume=0.65;remoteAudio.muted=false;remoteAudio.autoplay=true;remoteAudio.playsInline=true;
  call.pc.onicecandidate=e=>{if(e.candidate)channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,candidate:e.candidate}})};
  call.pc.ontrack=e=>{
   const track=e.track;
@@ -525,10 +526,10 @@ async function startCall(video){
  if(state.call){toast('Du bist bereits in einem Anruf.');return}
  try{
   const channel=await ensureCallChannel(state.conversation.id);
-  const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:video?{facingMode:'user'}:false});
+  const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1}},video:video?{facingMode:'user'}:false});
   const call={pc:new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]}),stream,remoteStream:new MediaStream(),video,pendingCandidates:[]};
   state.call=call;state.callChannel=channel;setupCallPeer(call,channel);
-  stream.getTracks().forEach(t=>call.pc.addTrack(t,stream));
+  const mic=stream.getAudioTracks()[0];if(mic){mic.enabled=true;mic.applyConstraints({echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1}}).catch(()=>{});}stream.getTracks().forEach(t=>call.pc.addTrack(t,stream));
   $('#localVideo').srcObject=stream;$('#localVideo').muted=true;
   $('#remoteVideo').srcObject=call.remoteStream;$('#remoteVideo').muted=true;
   $('#remoteVideo').style.display=video?'block':'none';$('#localVideo').style.display=video?'block':'none';
