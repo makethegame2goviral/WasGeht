@@ -613,14 +613,15 @@ function listenForCalls(conversationId){
      }
      $('#callState').textContent='Verbunden';
     };
-    await pc.setRemoteDescription(payload.description);
+    $('#localVideo').srcObject=null;$('#remoteVideo').srcObject=null;$('#remoteAudio').srcObject=null;$('#remoteVideo').muted=true;$('#localVideo').muted=true;$('#localVideo').style.display=payload.video?'block':'none';$('#remoteVideo').style.display=payload.video?'block':'none';
+     await pc.setRemoteDescription(payload.description);
     for(const candidate of (state.pendingCallCandidates||[]).splice(0))await pc.addIceCandidate(candidate);
     const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:!!payload.video});
     call.stream=stream;
     stream.getTracks().forEach(t=>pc.addTrack(t,stream));
     const answer=await pc.createAnswer();await pc.setLocalDescription(answer);
     await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,description:pc.localDescription}});
-    $('#localVideo').srcObject=stream;$('#localVideo').muted=true;$('#remoteVideo').srcObject=null;$('#remoteVideo').muted=true;
+    $('#localVideo').srcObject=stream;$('#localVideo').muted=true;$('#remoteVideo').muted=true;
     $('#localVideo').style.display=payload.video?'block':'none';$('#remoteVideo').style.display=payload.video?'block':'none';
     $('#callOverlay').classList.remove('hidden');$('#callTitle').textContent=payload.video?'Videoanruf':'Sprachanruf';$('#callState').textContent='Verbinde …';
     $('#hangupCall').onclick=()=>endCall(true);
@@ -640,11 +641,15 @@ async function joinCallInvite(messageId){
  const row=state.messages.find(m=>m.id===messageId);
  if(!row||row.deleted_at||!/^__WG_CALL_INVITE_(VIDEO|AUDIO)__/.test(row.body||'')){toast('Diese Anrufeinladung ist nicht mehr gültig.');return}
  if(state.call){toast('Du bist bereits in einem Anruf.');return}
- const video=row.body.includes('VIDEO');
- if(!state.incomingCallChannel)listenForCalls(state.conversation.id);
- const channel=state.incomingCallChannel;
- await channel.send({type:'broadcast',event:'join',payload:{from:state.user.id,inviteId:messageId}});
- toast('Anruf wird verbunden …');
+ try{
+  if(!state.incomingCallChannel)listenForCalls(state.conversation.id);
+  const channel=state.incomingCallChannel;
+  if(!channel)throw new Error('Anrufkanal fehlt. Bitte Chat neu öffnen.');
+  await new Promise((resolve,reject)=>{let done=false;const timer=setTimeout(()=>{if(!done){done=true;reject(new Error('Anrufkanal antwortet nicht. Bitte erneut versuchen.'))}},10000);channel.subscribe(status=>{if(status==='SUBSCRIBED'&&!done){done=true;clearTimeout(timer);resolve()}else if(status==='CHANNEL_ERROR'&&!done){done=true;clearTimeout(timer);reject(new Error('Anrufkanal konnte nicht verbunden werden.'))}})});
+  const result=await channel.send({type:'broadcast',event:'join',payload:{from:state.user.id,inviteId:messageId}});
+  if(result!=='ok')throw new Error('Beitrittsanfrage wurde nicht gesendet.');
+  toast('Anfrage gesendet – der Anruf wird verbunden …');
+ }catch(e){toast('Beitreten fehlgeschlagen: '+(e?.message||'Bitte erneut versuchen.'))}
 }
 async function startCall(video){
  if(!state.conversation||state.conversation.kind!=='dm')return;
