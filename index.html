@@ -319,7 +319,7 @@ function showChatMore(c,other){
 }
 function showModal(html){$('#modalRoot').innerHTML='<div class="modal-backdrop" id="backdrop">'+html+'</div>';$('#backdrop').addEventListener('click',e=>{if(e.target.id==='backdrop')closeModal()})}function closeModal(){$('#modalRoot').innerHTML=''}
 async function renderContacts(){
- const main=$('#main');
+ const renderToken=viewLoadToken;const main=$('#main');
  main.innerHTML='<div class="section-view"><h2>Kontakte</h2><p class="intro">Kontakte werden geladen …</p></div>';
  const timeout=(p,label)=>Promise.race([p,new Promise((_,reject)=>setTimeout(()=>reject(new Error(label+' dauert zu lange. Bitte Verbindung prüfen und erneut versuchen.')),12000))]);
  const results=await timeout(Promise.all([
@@ -341,7 +341,7 @@ async function renderContacts(){
  html+='<h3>Deine Kontakte</h3>';
  html+=(accepted.data||[]).map(r=>{const id=r.sender_id===state.user.id?r.receiver_id:r.sender_id,p=pmap[id];return '<div class="card card-row"><div class="avatar">'+safe(initials(p?.username))+'</div><div class="grow"><strong>'+safe(p?.username||'Nutzer')+'</strong><p>'+(p?.last_seen&&Date.now()-new Date(p.last_seen).getTime()<90000?'<span class="dot"></span>Online':'Offline')+'</p></div><button class="secondary" data-start-dm="'+id+'">Chat</button><button class="ghost" data-block="'+id+'">Blockieren</button></div>'}).join('')||'<p class="muted small">Noch keine Kontakte.</p>';
  if(blocked.length)html+='<h3>Blockiert</h3>'+blocked.map(id=>'<div class="card card-row"><div class="grow"><strong>'+safe(pmap[id]?.username||'Nutzer')+'</strong></div><button class="secondary" data-unblock="'+id+'">Entblockieren</button></div>').join('');
- html+='</div>';main.innerHTML=html;
+ if(renderToken!==viewLoadToken)return;html+='</div>';main.innerHTML=html;
  $('#peopleSearch').addEventListener('input',debounce(searchPeople,350));
  document.querySelectorAll('[data-friend-accept]').forEach(b=>b.onclick=async()=>{b.disabled=true;const {error}=await sb.rpc('wg_respond_friend_request',{p_request_id:b.dataset.friendAccept,p_accept:true});if(error){toast(error.message);b.disabled=false}else renderContacts()});
  document.querySelectorAll('[data-friend-decline]').forEach(b=>b.onclick=async()=>{b.disabled=true;const {error}=await sb.rpc('wg_respond_friend_request',{p_request_id:b.dataset.friendDecline,p_accept:false});if(error){toast(error.message);b.disabled=false}else renderContacts()});
@@ -352,7 +352,7 @@ async function renderContacts(){
 let searchTimer;function debounce(fn,ms){return (...args)=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>fn(...args),ms)}}
 async function searchPeople(){const q=$('#peopleSearch').value.trim();const box=$('#peopleResults');if(q.length<2){box.innerHTML='';return}const {data,error}=await sb.from('wg_profiles').select('user_id,username,bio,last_seen').ilike('username','%'+q+'%').neq('user_id',state.user.id).limit(12);if(error){box.textContent=error.message;return}box.innerHTML=(data||[]).map(p=>'<div class="card-row" style="padding:8px 0"><div class="avatar">'+safe(initials(p.username))+'</div><div class="grow"><strong>'+safe(p.username)+'</strong><p>'+(p.last_seen&&Date.now()-new Date(p.last_seen).getTime()<90000?'Online':'Offline')+'</p></div><button class="secondary" data-add-friend="'+p.user_id+'">Anfrage senden</button></div>').join('')||'<p class="muted small">Niemand gefunden.</p>';box.querySelectorAll('[data-add-friend]').forEach(b=>b.onclick=async()=>{const {error}=await sb.from('wg_friend_requests').insert({sender_id:state.user.id,receiver_id:b.dataset.addFriend});if(error)toast(error.message);else{b.disabled=true;b.textContent='Gesendet';toast('Anfrage gesendet')}})}
 async function renderGroups(){
- const main=$('#main');main.innerHTML='<div class="section-view"><h2>Gruppen</h2><p class="intro">Gruppen werden geladen …</p></div>';
+ const renderToken=viewLoadToken;const main=$('#main');main.innerHTML='<div class="section-view"><h2>Gruppen</h2><p class="intro">Gruppen werden geladen …</p></div>';
  const timeout=(p,label)=>Promise.race([p,new Promise((_,reject)=>setTimeout(()=>reject(new Error(label+' dauert zu lange. Bitte Verbindung prüfen und erneut versuchen.')),12000))]);
  const [groupRes,mineRes,reqRes]=await timeout(Promise.all([
   sb.from('wg_conversations').select('id,title,description,created_at,is_public').eq('kind','group').eq('is_public',true).order('created_at',{ascending:false}).limit(60),
@@ -364,7 +364,7 @@ async function renderGroups(){
  if(reqRes.error)throw new Error('Beitrittsanfragen: '+reqRes.error.message);
  const own=new Set((mineRes.data||[]).map(x=>x.conversation_id));
  const html='<div class="section-view"><h2>Gruppen</h2><p class="intro">Finde öffentliche Gruppen oder erstelle deine eigene Gruppe.</p><button class="primary" id="newGroup">＋ Gruppe erstellen</button><div class="field"><label>Öffentliche Gruppen suchen</label><input id="groupSearch" placeholder="Gruppenname suchen …"></div><div id="groupResults">'+((groupRes.data||[]).map(g=>groupCard(g,own.has(g.id))).join('')||'<p class="muted">Aktuell gibt es keine öffentlichen Gruppen.</p>')+'</div><h3>Beitrittsanfragen</h3><div id="myGroupRequests">'+((reqRes.data||[]).map(r=>'<div class="card"><span class="muted small">Anfrage ausstehend · '+safe(r.conversation_id.slice(0,8))+'</span></div>').join('')||'<p class="muted small">Keine offenen Anfragen.</p>')+'</div></div>';
- main.innerHTML=html;$('#newGroup').onclick=createGroupDialog;
+ if(renderToken!==viewLoadToken)return;main.innerHTML=html;$('#newGroup').onclick=createGroupDialog;
  $('#groupSearch').addEventListener('input',()=>{const q=$('#groupSearch').value.toLowerCase();$('#groupResults').querySelectorAll('[data-group-card]').forEach(el=>el.classList.toggle('hidden',!el.dataset.groupCard.includes(q)))});
  document.querySelectorAll('[data-join-group]').forEach(b=>b.onclick=async()=>{b.disabled=true;const {error}=await sb.from('wg_group_join_requests').insert({conversation_id:b.dataset.joinGroup,requester_id:state.user.id});if(error){toast(error.message);b.disabled=false}else{b.textContent='Anfrage gesendet';toast('Anfrage gesendet')}});
  document.querySelectorAll('[data-open-group]').forEach(b=>b.onclick=()=>openConversation(b.dataset.openGroup));
