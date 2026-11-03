@@ -289,7 +289,7 @@ async function renderProfile(){
   const p=state.profile;
   const {data:avatarData}=p.avatar_path?await sb.storage.from('wg-media').createSignedUrl(p.avatar_path,3600):{data:null};
   const avatar=avatarData?.signedUrl?'<img src="'+avatarData.signedUrl+'" alt="Profilbild">':safe(initials(p.username));
-  $('#main').innerHTML='<div class="section-view"><h2>Dein Profil</h2><p class="intro">So sehen dich andere Nutzer auf WasGeht.</p><div class="card"><div class="card-row"><div class="avatar" id="profileAvatar">'+avatar+'</div><div class="grow"><strong>'+safe(p.username)+'</strong><p>Online / Offline wird automatisch angezeigt.</p></div></div><div class="field"><label>Profilbild</label><input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></div><button class="secondary" id="uploadAvatar">Profilbild hochladen</button><div class="field"><label>Benutzername</label><input id="profileUsername" maxlength="24" value="'+safe(p.username)+'"></div><div class="field"><label>Bio</label><textarea id="profileBio" maxlength="160" rows="2">'+safe(p.bio||'')+'</textarea></div><div class="field"><label>Status / Info</label><input id="profileStatus" maxlength="80" value="'+safe(p.status_text||'')+'"></div><button class="primary" id="saveProfile">Profil speichern</button></div><div class="card"><strong>Datenschutz</strong><p class="muted small">Private Einzelchats sind nur für die jeweiligen Chatmitglieder sichtbar. Der WasGeht-Admin kann Gruppen und deren Nachrichten verwalten und lesen, aber keine privaten Einzelchats.</p></div></div>';
+  $('#main').innerHTML='<div class="section-view"><h2>Dein Profil</h2><p class="intro">So sehen dich andere Nutzer auf WasGeht.</p><div class="card"><div class="card-row"><div class="avatar" id="profileAvatar">'+avatar+'</div><div class="grow"><strong>'+safe(p.username)+'</strong><p>Online / Offline wird automatisch angezeigt.</p></div></div><div class="field"><label>Profilbild</label><input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></div><button class="secondary" id="uploadAvatar">Profilbild hochladen</button><div class="field"><label>Benutzername</label><input id="profileUsername" maxlength="24" value="'+safe(p.username)+'"></div><div class="field"><label>Bio</label><textarea id="profileBio" maxlength="160" rows="2">'+safe(p.bio||'')+'</textarea></div><div class="field"><label>Status / Info</label><input id="profileStatus" maxlength="80" value="'+safe(p.status_text||'')+'"></div><button class="primary" id="saveProfile">Profil speichern</button><div class="actions" style="margin-top:12px"><button class="secondary" id="changePassword">Passwort ändern</button><button class="secondary" id="profileNotifications">Benachrichtigungen aktivieren</button><button class="danger" id="deleteAccount">Account endgültig löschen</button></div></div><div class="card"><strong>Datenschutz</strong><p class="muted small">Private Einzelchats sind nur für die jeweiligen Chatmitglieder sichtbar. Der WasGeht-Admin kann Gruppen und deren Nachrichten verwalten und lesen, aber keine privaten Einzelchats.</p></div></div>';
   $('#uploadAvatar').onclick=async()=>{
     const file=$('#avatarFile').files?.[0];if(!file){toast('Wähle zuerst ein Bild aus.');return}
     if(!file.type.startsWith('image/')||file.size>5*1024*1024){toast('Bitte ein Bild bis 5 MB auswählen.');return}
@@ -307,6 +307,32 @@ async function renderProfile(){
   $('#saveProfile').onclick=async()=>{
     const {error}=await sb.rpc('wg_update_profile',{p_username:$('#profileUsername').value.trim(),p_bio:$('#profileBio').value,p_status_text:$('#profileStatus').value});
     if(error)toast(error.message);else{state.profile={...state.profile,username:$('#profileUsername').value.trim(),bio:$('#profileBio').value,status_text:$('#profileStatus').value};$('#miniName').textContent=state.profile.username;if(!state.profile.avatar_path)$('#miniAvatar').textContent=initials(state.profile.username);toast('Profil gespeichert')}
+  };
+  $('#changePassword').onclick=async()=>{
+    const password=prompt('Neues Passwort eingeben (mindestens 8 Zeichen):');
+    if(password===null)return;
+    if(password.length<8){toast('Das Passwort muss mindestens 8 Zeichen lang sein.');return}
+    const {error}=await sb.auth.updateUser({password});
+    if(error)toast(error.message);else toast('Passwort geändert');
+  };
+  $('#profileNotifications').onclick=async()=>{
+    if(!('Notification'in window)){toast('Dieser Browser unterstützt keine Benachrichtigungen.');return}
+    const permission=await Notification.requestPermission();
+    if(permission==='granted'){
+      const reg=await navigator.serviceWorker?.ready;
+      reg?.showNotification('WasGeht',{body:'Benachrichtigungen sind auf diesem Gerät aktiviert.',icon:'./icon.svg'});
+      toast('Benachrichtigungen aktiviert');
+    }else toast('Benachrichtigungen wurden nicht erlaubt');
+  };
+  $('#deleteAccount').onclick=async()=>{
+    if(!confirm('Möchtest du deinen WasGeht-Account und deine Daten wirklich endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.'))return;
+    if(!confirm('Letzte Bestätigung: Account wirklich löschen?'))return;
+    $('#deleteAccount').disabled=true;
+    const {error}=await sb.functions.invoke('wg-delete-account',{method:'POST',body:{}});
+    if(error){toast('Löschen fehlgeschlagen: '+error.message);$('#deleteAccount').disabled=false;return}
+    await sb.auth.signOut();
+    alert('Dein WasGeht-Account wurde gelöscht.');
+    location.reload();
   };
 }
 async function renderAdmin(){if(!state.admin){$('#main').innerHTML='<div class="empty"><div><div class="empty-mark">♛</div><h2>Adminzugang nicht eingerichtet</h2><p>Der Account WasGehtAdminYusuf muss nach der Registrierung einmalig in der Supabase-Tabelle wg_admins freigeschaltet werden.</p></div></div>';return}const users=await sb.from('wg_profiles').select('*').order('created_at',{ascending:false});const groups=await sb.from('wg_conversations').select('*').eq('kind','group').order('created_at',{ascending:false});$('#main').innerHTML='<div class="section-view"><h2>Admin-Dashboard</h2><p class="intro">Konten und Gruppen verwalten. Private Einzelchats sind hier absichtlich nicht verfügbar.</p><h3>Accounts ('+(users.data||[]).length+')</h3>'+(users.data||[]).map(u=>'<div class="card card-row"><div class="avatar">'+safe(initials(u.username))+'</div><div class="grow"><strong>'+safe(u.username)+'</strong><p>'+(u.is_banned?'Gesperrt':'Aktiv')+'</p></div><button class="secondary" data-admin-edit="'+u.user_id+'">Verwalten</button></div>').join('')+'<h3>Gruppen ('+(groups.data||[]).length+')</h3>'+(groups.data||[]).map(g=>'<div class="card card-row"><div class="avatar">👥</div><div class="grow"><strong>'+safe(g.title)+'</strong><p>'+(g.is_public?'Öffentlich':'Privat')+'</p></div><button class="secondary" data-admin-join="'+g.id+'">Beitreten</button><button class="secondary" data-admin-group="'+g.id+'">Gruppe ansehen</button></div>').join('');document.querySelectorAll('[data-admin-edit]').forEach(b=>b.onclick=()=>adminEditUser(b.dataset.adminEdit,users.data.find(u=>u.user_id===b.dataset.adminEdit)));document.querySelectorAll('[data-admin-group]').forEach(b=>b.onclick=()=>adminViewGroup(b.dataset.adminGroup));document.querySelectorAll('[data-admin-join]').forEach(b=>b.onclick=async()=>{const {error}=await sb.rpc('wg_admin_join_group',{p_conversation_id:b.dataset.adminJoin});if(error)toast(error.message);else{toast('Admin ist der Gruppe beigetreten');renderAdmin()}})}
