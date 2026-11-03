@@ -1,12 +1,12 @@
 {
-  "name": "WasGeht – Deine Chats. Deine Welt.",
-  "short_name": "WasGeht",
+  "name": "Nexora – Chats. Freunde. Verbunden.",
+  "short_name": "Nexora",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#061b10",
   "theme_color": "#12c96b",
-  "description": "Deine Chats. Deine Welt.",
+  "description": "Chats. Freunde. Verbunden.",
   "icons": [
     {
       "src": "./icon.svg?v=4",
