@@ -9,7 +9,7 @@
   "description": "Deine Chats. Deine Welt.",
   "icons": [
     {
-      "src": "./icon.svg?v=3",
+      "src": "./icon.svg?v=4",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
