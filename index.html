@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#12845a">
-<meta name="description" content="WasGeht – Deine Chats. Deine Welt 1.">
+<meta name="description" content="WasGeht – Deine Chats. Deine Welt 2.">
 <link rel="icon" type="image/svg+xml" href="./icon.svg?v=4">
 <link rel="apple-touch-icon" sizes="180x180" href="./icon.svg?v=4">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="WasGeht">
 <link rel="manifest" href="./manifest.webmanifest">
-<title>WasGeht – Deine Chats. Deine Welt 1.</title>
+<title>WasGeht – Deine Chats. Deine Welt 2.</title>
 <style>
 :root{--green:#12845a;--green2:#19a875;--mint:#e9f7f0;--bg:#f5f8f6;--ink:#14231d;--muted:#73827a;--line:#e4ece7;--white:#fff;--shadow:0 16px 50px rgba(17,63,43,.09)}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}button,input,textarea,select{font:inherit}button{cursor:pointer;border:0}.hidden{display:none!important}.muted{color:var(--muted)}.small{font-size:12px}.brand{display:flex;align-items:center;gap:11px;font-weight:850;letter-spacing:-.5px}.brand-mark{width:42px;height:42px;border-radius:15px;background:linear-gradient(145deg,#1bb77b,#08764e);display:grid;place-items:center;overflow:hidden;box-shadow:0 8px 18px #12845a33;flex:none}.brand-mark img{width:100%;height:100%;object-fit:cover}.brand-name{font-size:22px}.tagline{font-size:12px;color:var(--muted);font-weight:500;letter-spacing:0}
@@ -67,7 +67,7 @@
 <body>
 <div id="auth" class="auth-wrap">
   <div class="auth-card">
-    <div class="brand"><div class="brand-mark"><img src="./icon.svg?v=4" alt="WasGeht"></div><div><div class="brand-name">WasGeht</div><div class="tagline">Deine Chats. Deine Welt 1.</div></div></div>
+    <div class="brand"><div class="brand-mark"><img src="./icon.svg?v=4" alt="WasGeht"></div><div><div class="brand-name">WasGeht</div><div class="tagline">Deine Chats. Deine Welt 2.</div></div></div>
     <h1 id="authTitle">Schön, dass du da bist.</h1>
     <p id="authSubtitle">Melde dich mit deinem Benutzernamen an oder erstelle einen Account.</p>
     <div id="authMessage" class="message hidden"></div>
@@ -82,7 +82,7 @@
 </div>
 <div id="app" class="hidden">
   <aside class="rail">
-    <div class="brand"><div class="brand-mark"><img src="./icon.svg?v=4" alt="WasGeht"></div><div><div class="brand-name">WasGeht</div><div class="tagline">Deine Chats. Deine Welt 1.</div></div></div>
+    <div class="brand"><div class="brand-mark"><img src="./icon.svg?v=4" alt="WasGeht"></div><div><div class="brand-name">WasGeht</div><div class="tagline">Deine Chats. Deine Welt 2.</div></div></div>
     <nav class="nav" id="nav">
       <button class="active" data-view="chats"><span class="ico">▣</span><span class="nav-label">Chats</span></button>
       <button data-view="contacts"><span class="ico">♙</span><span class="nav-label">Kontakte</span></button>
@@ -98,7 +98,7 @@
     <div class="list-content" id="listContent"></div>
   </section>
   <main class="main" id="main">
-    <div class="empty"><div><div class="empty-mark">✉</div><h2>Deine Chats. Deine Welt 1.</h2><p>Wähle einen Chat aus oder starte eine neue Unterhaltung über deine Kontakte.</p></div></div>
+    <div class="empty"><div><div class="empty-mark">✉</div><h2>Deine Chats. Deine Welt 2.</h2><p>Wähle einen Chat aus oder starte eine neue Unterhaltung über deine Kontakte.</p></div></div>
   </main>
 </div>
 <div id="modalRoot"></div>
@@ -257,6 +257,8 @@ async function loadMessages(){
  el.innerHTML=banner+state.messages.map(m=>{
   const mine=m.sender_id===state.user.id;let content=safe(m.body);
   if(m.deleted_at)content='<i class="muted">Nachricht gelöscht</i>';
+  else if(m.message_type==='system'&&/^__WG_CALL_INVITE_(VIDEO|AUDIO)__/.test(m.body||'')){const mode=m.body.includes('VIDEO')?'Videoanruf':'Sprachanruf';content='<div>📞 '+mode+' · <button class="primary" data-join-call="'+m.id+'">Anruf beitreten</button></div>';
+  }
   else if(m.media_path&&mediaUrls[m.id]){const u=mediaUrls[m.id];if(m.message_type==='image')content='<img src="'+u+'" alt="Bild">';else if(m.message_type==='video')content='<video controls src="'+u+'"></video>';else if(m.message_type==='audio')content='<audio controls src="'+u+'"></audio>'+(m.body?'<div>'+safe(m.body)+'</div>':'')}
   const clock=new Date(m.created_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
   const receipt=mine?(receiptMap[m.id]?.read_at?' · ✓✓ Gelesen':receiptMap[m.id]?.delivered_at?' · ✓✓ Zugestellt':' · ✓ Gesendet'):'';
@@ -268,6 +270,7 @@ async function loadMessages(){
   el.querySelectorAll('[data-menu-toggle]').forEach(b=>b.addEventListener('click',()=>{const menu=$('#bubble-menu-'+b.dataset.menuToggle);document.querySelectorAll('.bubble-menu.open').forEach(x=>{if(x!==menu)x.classList.remove('open')});menu?.classList.toggle('open')}));
   el.querySelectorAll('[data-menu-close]').forEach(b=>b.addEventListener('click',()=>$('#bubble-menu-'+b.dataset.menuClose)?.classList.remove('open')));
  el.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>editMessage(b.dataset.edit)));
+ el.querySelectorAll('[data-join-call]').forEach(b=>b.addEventListener('click',()=>joinCallInvite(b.dataset.joinCall)));
  el.querySelectorAll('[data-delete]').forEach(b=>b.addEventListener('click',()=>deleteMessage(b.dataset.delete)));
  el.querySelectorAll('[data-react]').forEach(b=>b.addEventListener('click',()=>reactMessage(b.dataset.react,b.dataset.emoji)));el.querySelectorAll('[data-add-reaction]').forEach(b=>b.addEventListener('click',()=>chooseReaction(b.dataset.addReaction)));
  el.querySelectorAll('[data-reply]').forEach(b=>b.addEventListener('click',()=>{state.replyTo=b.dataset.reply;$('#messageInput').placeholder='Antwort schreiben …';$('#messageInput').focus()}));
@@ -477,7 +480,7 @@ async function renderStatuses(){
   const mediaUrls={};
   for(const status of data||[]){if(status.media_path){const {data:u}=await sb.storage.from('wg-media').createSignedUrl(status.media_path,3600);if(u?.signedUrl)mediaUrls[status.id]=u.signedUrl}}
   $('#main').innerHTML='<div class="section-view"><h2>Status</h2><p class="intro">Texte, Fotos und Videos – sie verschwinden automatisch nach 24 Stunden.</p><div class="card"><div class="field"><label>Textstatus</label><textarea id="statusText" rows="2" maxlength="1000" placeholder="Was gibt es Neues?"></textarea></div><div class="field"><label>Oder Foto / Video hinzufügen</label><input id="statusMedia" type="file" accept="image/*,video/mp4,video/webm"></div><button class="primary" id="postStatus">Status teilen</button></div><div class="status-grid">'+(error?'<p>'+safe(error.message)+'</p>':(data||[]).map(st=>{const u=mediaUrls[st.id];let media='';if(u&&st.media_type==='image')media='<img src="'+u+'" alt="Statusbild" style="width:100%;max-height:260px;object-fit:cover;border-radius:12px;margin-top:8px">';if(u&&st.media_type==='video')media='<video controls src="'+u+'" style="width:100%;max-height:260px;border-radius:12px;margin-top:8px"></video>';return '<div class="status-card"><strong>'+safe(pmap[st.user_id]||'Nutzer')+'</strong><p>'+safe(st.body||'')+'</p>'+media+'<span class="small muted">'+new Date(st.created_at).toLocaleString('de-DE')+'</span>'+(st.user_id===state.user.id?'<div class="actions"><button class="danger" data-delete-status="'+st.id+'">Status löschen</button></div>':'')+'</div>'}).join(''))+'</div></div>';
-  document.querySelectorAll('[data-delete-status]').forEach(b=>b.onclick=async()=>{if(!confirm('Diesen Status wirklich löschen?'))return;b.disabled=true;const {error}=await sb.from('wg_statuses').delete().eq('id',b.dataset.deleteStatus).eq('user_id',state.user.id);if(error){toast(error.message);b.disabled=false}else{toast('Status gelöscht');renderStatuses()}});
+  document.querySelectorAll('[data-delete-status]').forEach(b=>b.onclick=async()=>{if(!confirm('Diesen Status wirklich löschen?'))return;b.disabled=true;const target=(data||[]).find(x=>x.id===b.dataset.deleteStatus);if(target?.media_path){const removed=await sb.storage.from('wg-media').remove([target.media_path]);if(removed.error){toast('Mediendatei konnte nicht gelöscht werden: '+removed.error.message);b.disabled=false;return}}const {error}=await sb.from('wg_statuses').delete().eq('id',b.dataset.deleteStatus).eq('user_id',state.user.id);if(error){toast(error.message);b.disabled=false}else{toast('Status gelöscht');renderStatuses()}});
   $('#postStatus').onclick=async()=>{
     const body=$('#statusText').value.trim(), file=$('#statusMedia').files?.[0];
     if(!body&&!file){toast('Schreibe etwas oder wähle ein Foto/Video.');return}
@@ -602,7 +605,7 @@ function listenForCalls(conversationId){
     state.call=call;state.callChannel=channel;
     pc.onicecandidate=e=>{if(e.candidate)channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,candidate:e.candidate}})};
     pc.ontrack=e=>{
-     const remoteStream=e.streams?.[0];
+     const remoteStream=e.streams?.[0]||new MediaStream([e.track]);
      if(remoteStream){
       $('#remoteVideo').srcObject=remoteStream;
       const audio=$('#remoteAudio');if(audio){audio.srcObject=remoteStream;audio.muted=false;audio.volume=1;audio.play().catch(()=>{});}
@@ -632,6 +635,17 @@ function listenForCalls(conversationId){
  });
  channel.subscribe();
 }
+async function joinCallInvite(messageId){
+ if(!state.conversation||state.conversation.kind!=='dm')return;
+ const row=state.messages.find(m=>m.id===messageId);
+ if(!row||row.deleted_at||!/^__WG_CALL_INVITE_(VIDEO|AUDIO)__/.test(row.body||'')){toast('Diese Anrufeinladung ist nicht mehr gültig.');return}
+ if(state.call){toast('Du bist bereits in einem Anruf.');return}
+ const video=row.body.includes('VIDEO');
+ const channel=state.incomingCallChannel||sb.channel('wg-call-'+state.conversation.id,{config:{broadcast:{self:false}}});
+ if(!state.incomingCallChannel){state.incomingCallChannel=channel;listenForCalls(state.conversation.id)}
+ await channel.send({type:'broadcast',event:'join',payload:{from:state.user.id,inviteId:messageId}});
+ toast('Anruf wird verbunden …');
+}
 async function startCall(video){
  if(!state.conversation||state.conversation.kind!=='dm')return;
  if(state.call){toast('Du bist bereits in einem Anruf.');return}
@@ -639,41 +653,48 @@ async function startCall(video){
   const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video});
   const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
   stream.getTracks().forEach(t=>pc.addTrack(t,stream));
-  const channel=state.incomingCallChannel||sb.channel('wg-call-'+state.conversation.id,{config:{broadcast:{self:false}}});
-  if(!state.incomingCallChannel){
-   state.incomingCallChannel=channel;
-   channel.on('broadcast',{event:'signal'},async({payload})=>{
-    if(!payload||payload.from===state.user.id)return;
-    try{
-     if(payload.end){if(state.call)await endCall(false);return}
-     if(payload.candidate){if(state.call?.pc?.remoteDescription)await state.call.pc.addIceCandidate(payload.candidate);else if(state.call)state.call.pendingCandidates.push(payload.candidate);return}
-     if(payload.description?.type==='answer'&&state.call?.pc){await state.call.pc.setRemoteDescription(payload.description);for(const c of state.call.pendingCandidates.splice(0))await state.call.pc.addIceCandidate(c);$('#callState').textContent='Verbunden'}
-    }catch(e){toast('Anrufverbindung fehlgeschlagen: '+e.message)}
-   });
-   await new Promise(resolve=>channel.subscribe(status=>{if(status==='SUBSCRIBED')resolve()}));
-  }
-  state.call={pc,stream,video,pendingCandidates:[]};state.callChannel=channel;
-  $('#localVideo').srcObject=stream;$('#remoteVideo').srcObject=null;
+  let channel=state.incomingCallChannel||sb.channel('wg-call-'+state.conversation.id,{config:{broadcast:{self:false}}});
+  if(state.incomingCallChannel)sb.removeChannel(state.incomingCallChannel);
+  channel=sb.channel('wg-call-'+state.conversation.id,{config:{broadcast:{self:false}}});
+  state.incomingCallChannel=channel;
+  const conversationId=state.conversation.id;
+  const {data:invite,error:inviteError}=await sb.from('wg_messages').insert({conversation_id:conversationId,sender_id:state.user.id,body:video?'__WG_CALL_INVITE_VIDEO__':'__WG_CALL_INVITE_AUDIO__',message_type:'system'}).select('id').single();
+  if(inviteError)throw inviteError;
+  const call={pc,stream,video,pendingCandidates:[],inviteMessageId:invite.id};
+  state.call=call;state.callChannel=channel;
+  $('#localVideo').srcObject=stream;$('#remoteVideo').srcObject=null;$('#remoteAudio').srcObject=null;
   $('#remoteVideo').style.display=video?'block':'none';$('#localVideo').style.display=video?'block':'none';
-  $('#callOverlay').classList.remove('hidden');$('#callTitle').textContent=video?'Videoanruf':'Sprachanruf';$('#callState').textContent='Anruf wird gestartet …';
+  $('#callOverlay').classList.remove('hidden');$('#callTitle').textContent=video?'Videoanruf':'Sprachanruf';$('#callState').textContent='Warte auf „Anruf beitreten“ …';
   pc.onicecandidate=e=>{if(e.candidate)channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,candidate:e.candidate}})};
-  pc.ontrack=e=>{
-   const remoteStream=e.streams?.[0];if(remoteStream){$('#remoteVideo').srcObject=remoteStream;$('#remoteVideo').muted=true;const audio=$('#remoteAudio');if(audio){audio.srcObject=remoteStream;audio.muted=false;audio.volume=1;audio.play().catch(()=>{});}$('#remoteVideo').play().catch(()=>{});}
-   $('#callState').textContent='Verbunden';
-  };
-  const offer=await pc.createOffer();await pc.setLocalDescription(offer);
-  await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,description:pc.localDescription,video}});
+  pc.ontrack=e=>{const remoteStream=e.streams?.[0]||new MediaStream([e.track]);$('#remoteVideo').srcObject=remoteStream;$('#remoteVideo').muted=true;const audio=$('#remoteAudio');if(audio){audio.srcObject=remoteStream;audio.muted=false;audio.volume=1;audio.play().catch(()=>{});}$('#remoteVideo').play().catch(()=>{});$('#callState').textContent='Verbunden';};
+  channel.on('broadcast',{event:'join'},async({payload})=>{
+   if(!payload||payload.from===state.user.id||payload.inviteId!==invite.id||call.offerSent)return;
+   call.offerSent=true;
+   const offer=await pc.createOffer();await pc.setLocalDescription(offer);
+   await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,description:pc.localDescription,video}});
+   $('#callState').textContent='Anruf wird verbunden …';
+  });
+  channel.on('broadcast',{event:'signal'},async({payload})=>{
+   if(!payload||payload.from===state.user.id)return;
+   try{
+    if(payload.end){if(state.call)await endCall(false);return}
+    if(payload.candidate){if(pc.remoteDescription)await pc.addIceCandidate(payload.candidate);else call.pendingCandidates.push(payload.candidate);return}
+    if(payload.description?.type==='answer'){await pc.setRemoteDescription(payload.description);for(const c of call.pendingCandidates.splice(0))await pc.addIceCandidate(c);$('#callState').textContent='Verbunden';}
+   }catch(e){toast('Anrufverbindung fehlgeschlagen: '+e.message)}
+  });
+  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Anrufkanal konnte nicht verbunden werden.')),10000);channel.subscribe(status=>{if(status==='SUBSCRIBED'){clearTimeout(timer);resolve()}})});
   $('#hangupCall').onclick=()=>endCall(true);
   $('#muteCall').onclick=()=>{const t=stream.getAudioTracks()[0];if(t)t.enabled=!t.enabled;$('#muteCall').textContent=t?.enabled?'🎙':'🔇'};
   $('#cameraCall').onclick=()=>{const t=stream.getVideoTracks()[0];if(t)t.enabled=!t.enabled;$('#cameraCall').textContent=t?.enabled?'📷':'🚫'};
- }catch(e){toast('Mikrofon/Kamera nicht verfügbar: '+(e?.message||'Bitte Berechtigungen prüfen.'))}
+  loadMessages();
+ }catch(e){toast('Mikrofon/Kamera nicht verfügbar: '+(e?.message||'Bitte Berechtigungen prüfen.'));if(state.call)await endCall(false)}
 }
 async function endCall(sendEnd){
  const channel=state.callChannel;
  if(sendEnd&&channel)await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,end:true}});
  if(state.call?.stream)state.call.stream.getTracks().forEach(t=>t.stop());
  if(state.call?.pc)state.call.pc.close();
- state.call=null;state.callChannel=null;
+ const inviteId=state.call?.inviteMessageId;state.call=null;state.callChannel=null;if(inviteId)sb.from('wg_messages').update({body:'Anruf beendet',deleted_at:new Date().toISOString()}).eq('id',inviteId).then(()=>{});
  $('#localVideo').srcObject=null;$('#remoteVideo').srcObject=null;$('#remoteAudio').srcObject=null;
  $('#callOverlay').classList.add('hidden');
 }
