@@ -257,7 +257,7 @@ async function loadMessages(){
  el.innerHTML=banner+state.messages.map(m=>{
   const mine=m.sender_id===state.user.id;let content=safe(m.body);
   if(m.deleted_at)content='<i class="muted">Nachricht gelöscht</i>';
-  else if(m.message_type==='system'&&/^__WG_CALL_INVITE_(VIDEO|AUDIO)__/.test(m.body||'')){const mode=m.body.includes('VIDEO')?'Videoanruf':'Sprachanruf';content='<div>📞 '+mode+' · <button class="primary" data-join-call="'+m.id+'">Anruf beitreten</button></div>';
+  else if(m.message_type==='system'&&/^__WG_CALL_INVITE_(VIDEO|AUDIO)__/.test(m.body||'')){const mode=m.body.includes('VIDEO')?'Videoanruf':'Sprachanruf';content=mine?'<div>📞 '+mode+' · Warte auf Teilnehmer …</div>':'<div>📞 '+mode+' · <button class="primary" data-join-call="'+m.id+'">Anruf beitreten</button></div>';
   }
   else if(m.media_path&&mediaUrls[m.id]){const u=mediaUrls[m.id];if(m.message_type==='image')content='<img src="'+u+'" alt="Bild">';else if(m.message_type==='video')content='<video controls src="'+u+'"></video>';else if(m.message_type==='audio')content='<audio controls src="'+u+'"></audio>'+(m.body?'<div>'+safe(m.body)+'</div>':'')}
   const clock=new Date(m.created_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
