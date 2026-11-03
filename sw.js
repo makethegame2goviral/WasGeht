@@ -1,5 +1,5 @@
-const CACHE='wasgeht-shell-v4';
-const SHELL=['./','./index.html','./manifest.webmanifest','./icon.svg?v=3'];
+const CACHE='wasgeht-shell-v5';
+const SHELL=['./','./index.html','./manifest.webmanifest','./icon.svg?v=4'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
@@ -17,8 +17,8 @@ self.addEventListener('push',event=>{
   try{if(event.data)data={...data,...event.data.json()}}catch{if(event.data)data.body=event.data.text()}
   event.waitUntil(self.registration.showNotification(data.title||'WasGeht',{
     body:data.body||'Du hast eine neue Nachricht.',
-    icon:'./icon.svg',
-    badge:'./icon.svg?v=3',
+    icon:'./icon.svg?v=4',
+    badge:'./icon.svg?v=4',
     tag:data.tag||'wasgeht-message',
     data:{url:data.url||'/'},
     renotify:true
