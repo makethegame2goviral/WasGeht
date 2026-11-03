@@ -664,33 +664,89 @@ function wireCallButtons(stream,video){
  $('#cameraCall').onclick=()=>{const t=stream?.getVideoTracks()[0];if(t)t.enabled=!t.enabled;$('#cameraCall').textContent=t?.enabled?'📷':'🚫'};
  $('#cameraCall').style.display=video?'':'none';
 }
-function listenForCalls(conversationId){ensureCallChannel(conversationId).catch(e=>toast(e.message))}
+function listenForCalls(conversationId){
+ if(state.incomingCallChannel)sb.removeChannel(state.incomingCallChannel);
+ const channel=sb.channel('wg-call-'+conversationId,{config:{broadcast:{self:false}}});
+ state.incomingCallChannel=channel;
+ channel.on('broadcast',{event:'signal'},async({payload})=>{
+  if(!payload||payload.from===state.user.id)return;
+  try{
+   if(payload.end){if(state.call)await endCall(false);return}
+   if(payload.candidate){
+    if(state.call?.pc?.remoteDescription)await state.call.pc.addIceCandidate(payload.candidate);
+    else if(state.call)state.call.pendingCandidates.push(payload.candidate);
+    return;
+   }
+   if(!payload.description)return;
+   if(payload.description.type==='offer'){
+    if(state.call){await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,end:true}});return}
+    const accept=confirm((payload.video?'Videoanruf':'Sprachanruf')+' annehmen?');
+    if(!accept){await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,end:true}});return}
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:!!payload.video});
+    const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+    stream.getTracks().forEach(t=>pc.addTrack(t,stream));
+    state.call={pc,stream,video:!!payload.video,pendingCandidates:[]};state.callChannel=channel;
+    await pc.setRemoteDescription(payload.description);
+    for(const candidate of state.call.pendingCandidates.splice(0))await pc.addIceCandidate(candidate);
+    const answer=await pc.createAnswer();await pc.setLocalDescription(answer);
+    await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,description:pc.localDescription}});
+    $('#localVideo').srcObject=stream;$('#remoteVideo').srcObject=null;
+    $('#localVideo').style.display=payload.video?'block':'none';$('#remoteVideo').style.display=payload.video?'block':'none';
+    $('#callOverlay').classList.remove('hidden');$('#callTitle').textContent=payload.video?'Videoanruf':'Sprachanruf';$('#callState').textContent='Verbinde …';
+    pc.onicecandidate=e=>{if(e.candidate)channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,candidate:e.candidate}})};
+    pc.ontrack=e=>{$('#remoteVideo').srcObject=e.streams[0];$('#callState').textContent='Verbunden'};
+    $('#hangupCall').onclick=()=>endCall(true);
+    $('#muteCall').onclick=()=>{const t=stream.getAudioTracks()[0];if(t)t.enabled=!t.enabled;$('#muteCall').textContent=t?.enabled?'🎙':'🔇'};
+    $('#cameraCall').onclick=()=>{const t=stream.getVideoTracks()[0];if(t)t.enabled=!t.enabled;$('#cameraCall').textContent=t?.enabled?'📷':'🚫'};
+   }else if(payload.description.type==='answer'&&state.call?.pc){
+    await state.call.pc.setRemoteDescription(payload.description);
+    for(const candidate of state.call.pendingCandidates.splice(0))await state.call.pc.addIceCandidate(candidate);
+    $('#callState').textContent='Verbindung wird hergestellt …';
+   }
+  }catch(e){toast('Anrufproblem: '+(e?.message||'Verbindung fehlgeschlagen'));if(state.call)await endCall(false)}
+ });
+ channel.subscribe();
+}
 async function startCall(video){
  if(!state.conversation||state.conversation.kind!=='dm')return;
  if(state.call){toast('Du bist bereits in einem Anruf.');return}
  try{
-  const channel=await ensureCallChannel(state.conversation.id);
-  const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1}},video:video?{facingMode:'user'}:false});
-  const iceServers=await getCallIceServers();
-  const call={pc:new RTCPeerConnection({iceServers,iceCandidatePoolSize:6,bundlePolicy:'max-bundle'}),stream,remoteStream:new MediaStream(),video,pendingCandidates:[]};
-  state.call=call;state.callChannel=channel;setupCallPeer(call,channel);
-  const mic=stream.getAudioTracks()[0];if(mic){mic.enabled=true;mic.applyConstraints({echoCancellation:{ideal:true},noiseSuppression:{ideal:true},autoGainControl:{ideal:true},channelCount:{ideal:1}}).catch(()=>{});}stream.getTracks().forEach(t=>call.pc.addTrack(t,stream));
-  $('#localVideo').srcObject=stream;$('#localVideo').muted=true;
-  $('#remoteVideo').srcObject=call.remoteStream;$('#remoteVideo').muted=true;
+  const stream=await navigator.mediaDevices.getUserMedia({audio:true,video});
+  const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  stream.getTracks().forEach(t=>pc.addTrack(t,stream));
+  const channel=state.incomingCallChannel||sb.channel('wg-call-'+state.conversation.id,{config:{broadcast:{self:false}}});
+  if(!state.incomingCallChannel){
+   state.incomingCallChannel=channel;
+   channel.on('broadcast',{event:'signal'},async({payload})=>{
+    if(!payload||payload.from===state.user.id)return;
+    try{
+     if(payload.end){if(state.call)await endCall(false);return}
+     if(payload.candidate){if(state.call?.pc?.remoteDescription)await state.call.pc.addIceCandidate(payload.candidate);else if(state.call)state.call.pendingCandidates.push(payload.candidate);return}
+     if(payload.description?.type==='answer'&&state.call?.pc){await state.call.pc.setRemoteDescription(payload.description);for(const c of state.call.pendingCandidates.splice(0))await state.call.pc.addIceCandidate(c);$('#callState').textContent='Verbunden'}
+    }catch(e){toast('Anrufverbindung fehlgeschlagen: '+e.message)}
+   });
+   await new Promise(resolve=>channel.subscribe(status=>{if(status==='SUBSCRIBED')resolve()}));
+  }
+  state.call={pc,stream,video,pendingCandidates:[]};state.callChannel=channel;
+  $('#localVideo').srcObject=stream;$('#remoteVideo').srcObject=null;
   $('#remoteVideo').style.display=video?'block':'none';$('#localVideo').style.display=video?'block':'none';
   $('#callOverlay').classList.remove('hidden');$('#callTitle').textContent=video?'Videoanruf':'Sprachanruf';$('#callState').textContent='Anruf wird gestartet …';
-  wireCallButtons(stream,video);
-  const offer=await call.pc.createOffer();await call.pc.setLocalDescription(offer);
-  await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,description:call.pc.localDescription,video}});
- }catch(e){toast('Mikrofon/Kamera nicht verfügbar: '+(e?.message||'Bitte Berechtigungen prüfen.'));if(state.call)await endCall(false)}
+  pc.onicecandidate=e=>{if(e.candidate)channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,candidate:e.candidate}})};
+  pc.ontrack=e=>{$('#remoteVideo').srcObject=e.streams[0];$('#callState').textContent='Verbunden'};
+  const offer=await pc.createOffer();await pc.setLocalDescription(offer);
+  await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,description:pc.localDescription,video}});
+  $('#hangupCall').onclick=()=>endCall(true);
+  $('#muteCall').onclick=()=>{const t=stream.getAudioTracks()[0];if(t)t.enabled=!t.enabled;$('#muteCall').textContent=t?.enabled?'🎙':'🔇'};
+  $('#cameraCall').onclick=()=>{const t=stream.getVideoTracks()[0];if(t)t.enabled=!t.enabled;$('#cameraCall').textContent=t?.enabled?'📷':'🚫'};
+ }catch(e){toast('Mikrofon/Kamera nicht verfügbar: '+(e?.message||'Bitte Berechtigungen prüfen.'))}
 }
 async function endCall(sendEnd){
- const channel=state.callChannel,call=state.call;
+ const channel=state.callChannel;
  if(sendEnd&&channel)await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,end:true}});
- if(call?.stream)call.stream.getTracks().forEach(t=>t.stop());
- if(call?.pc)call.pc.close();
- state.call=null;state.callChannel=null;state.pendingCallCandidates=[];
- $('#localVideo').srcObject=null;$('#remoteVideo').srcObject=null;$('#remoteAudio').srcObject=null;
+ if(state.call?.stream)state.call.stream.getTracks().forEach(t=>t.stop());
+ if(state.call?.pc)state.call.pc.close();
+ state.call=null;state.callChannel=null;
+ $('#localVideo').srcObject=null;$('#remoteVideo').srcObject=null;
  $('#callOverlay').classList.add('hidden');
 }
 window.wgGo=loadView;
