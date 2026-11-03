@@ -88,15 +88,19 @@ async function loadChatList(){
  const {data:members,error}=await sb.from('wg_conversation_members').select('conversation_id').eq('user_id',state.user.id);
  if(error){toast(error.message);return}
  const ids=(members||[]).map(x=>x.conversation_id);
- if(!ids.length){$('#listContent').innerHTML='<div class="card"><button class="secondary" id="toggleArchived">'+(state.showArchived?'Alle Chats':'Archivierte Chats')+'</button><p class="muted">Noch keine Chats. Füge Kontakte hinzu oder erstelle eine Gruppe.</p><button class="primary" onclick="window.wgGo(\'contacts\')">Kontakte finden</button></div>';$('#toggleArchived').onclick=()=>{state.showArchived=!state.showArchived;loadChatList()};return}
- const [convRes,allMembers,prof,latest,settings]=await Promise.all([
+ if(!ids.length){
+  $('#listContent').innerHTML='<div class="card"><button class="secondary" id="toggleArchived">'+(state.showArchived?'Alle Chats':'Archivierte Chats')+'</button><p class="muted">Noch keine Chats. Füge Kontakte hinzu oder erstelle eine Gruppe.</p><button class="primary" onclick="window.wgGo(\'contacts\')">Kontakte finden</button></div>';
+  $('#toggleArchived').onclick=()=>{state.showArchived=!state.showArchived;loadChatList()};return;
+ }
+ const [convRes,allMembers,latest,settings]=await Promise.all([
   sb.from('wg_conversations').select('*').in('id',ids),
   sb.from('wg_conversation_members').select('conversation_id,user_id').in('conversation_id',ids),
-  sb.from('wg_profiles').select('user_id,username,last_seen').in('user_id',[...new Set((await sb.from('wg_conversation_members').select('user_id').in('conversation_id',ids)).data||[]).map(x=>x.user_id)]),
   sb.from('wg_messages').select('conversation_id,body,message_type,created_at').in('conversation_id',ids).order('created_at',{ascending:false}),
   sb.from('wg_conversation_settings').select('*').eq('user_id',state.user.id)
  ]);
  state.conversations=convRes.data||[];
+ const userIds=[...new Set((allMembers.data||[]).map(x=>x.user_id))];
+ const prof=userIds.length?await sb.from('wg_profiles').select('user_id,username,last_seen').in('user_id',userIds):{data:[]};
  const pmap=Object.fromEntries((prof.data||[]).map(p=>[p.user_id,p]));
  const settingsMap=Object.fromEntries((settings.data||[]).map(x=>[x.conversation_id,x]));
  const lastMap={};(latest.data||[]).forEach(m=>{if(!lastMap[m.conversation_id])lastMap[m.conversation_id]=m});
