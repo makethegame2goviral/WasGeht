@@ -1,0 +1,18 @@
+{
+  "name": "WasGeht – Deine Chats. Deine Welt.",
+  "short_name": "WasGeht",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f8f6",
+  "theme_color": "#12845a",
+  "description": "Deine Chats. Deine Welt.",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
