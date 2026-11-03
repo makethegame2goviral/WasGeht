@@ -257,7 +257,7 @@ async function loadMessages(){
  el.innerHTML=banner+state.messages.map(m=>{
   const mine=m.sender_id===state.user.id;let content=safe(m.body);
   if(m.deleted_at)content='<i class="muted">Nachricht gelöscht</i>';
-  else if(m.message_type==='system'&&/^__WG_CALL_INVITE_(VIDEO|AUDIO)__/.test(m.body||'')){const mode=m.body.includes('VIDEO')?'Videoanruf':'Sprachanruf';content=mine?'<div>📞 '+mode+' · Warte auf Teilnehmer …</div>':'<div>📞 '+mode+' · <button class="primary" data-join-call="'+m.id+'">Anruf beitreten</button></div>';
+  else if(m.message_type==='system'&&/^__WG_CALL_INVITE_(VIDEO|AUDIO)__/.test(m.body||'')){const mode=m.body.includes('VIDEO')?'Videoanruf':'Sprachanruf';content=mine?'<div>📞 '+mode+' · Warte auf Teilnehmer …</div>':'<div>📞 '+mode+' · Der Anruf wird verbunden …</div>';
   }
   else if(m.media_path&&mediaUrls[m.id]){const u=mediaUrls[m.id];if(m.message_type==='image')content='<img src="'+u+'" alt="Bild">';else if(m.message_type==='video')content='<video controls src="'+u+'"></video>';else if(m.message_type==='audio')content='<audio controls src="'+u+'"></audio>'+(m.body?'<div>'+safe(m.body)+'</div>':'')}
   const clock=new Date(m.created_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
@@ -270,12 +270,14 @@ async function loadMessages(){
   el.querySelectorAll('[data-menu-toggle]').forEach(b=>b.addEventListener('click',()=>{const menu=$('#bubble-menu-'+b.dataset.menuToggle);document.querySelectorAll('.bubble-menu.open').forEach(x=>{if(x!==menu)x.classList.remove('open')});menu?.classList.toggle('open')}));
   el.querySelectorAll('[data-menu-close]').forEach(b=>b.addEventListener('click',()=>$('#bubble-menu-'+b.dataset.menuClose)?.classList.remove('open')));
  el.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>editMessage(b.dataset.edit)));
- el.querySelectorAll('[data-join-call]').forEach(b=>b.addEventListener('click',()=>joinCallInvite(b.dataset.joinCall)));
  el.querySelectorAll('[data-delete]').forEach(b=>b.addEventListener('click',()=>deleteMessage(b.dataset.delete)));
  el.querySelectorAll('[data-react]').forEach(b=>b.addEventListener('click',()=>reactMessage(b.dataset.react,b.dataset.emoji)));el.querySelectorAll('[data-add-reaction]').forEach(b=>b.addEventListener('click',()=>chooseReaction(b.dataset.addReaction)));
  el.querySelectorAll('[data-reply]').forEach(b=>b.addEventListener('click',()=>{state.replyTo=b.dataset.reply;$('#messageInput').placeholder='Antwort schreiben …';$('#messageInput').focus()}));
  el.querySelectorAll('[data-forward]').forEach(b=>b.addEventListener('click',()=>forwardMessage(b.dataset.forward)));
  el.querySelectorAll('[data-pin]').forEach(b=>b.addEventListener('click',()=>toggleMessagePin(b.dataset.pin)));
+ // Automatisch beitreten, sobald der Empfänger den Chat mit einer frischen Einladung geöffnet hat.
+ const incomingInvite=[...state.messages].reverse().find(m=>m.sender_id!==state.user.id&&!m.deleted_at&&m.message_type==='system'&&/^__WG_CALL_INVITE_(VIDEO|AUDIO)__/.test(m.body||'')&&Date.now()-new Date(m.created_at).getTime()<120000);
+ if(incomingInvite&&!state.call&&autoJoiningInviteId!==incomingInvite.id){autoJoiningInviteId=incomingInvite.id;joinCallInvite(incomingInvite.id).catch(e=>{autoJoiningInviteId=null;console.warn('Automatischer Anrufbeitritt fehlgeschlagen',e)})}
  el.querySelectorAll('[data-unpin]').forEach(b=>b.addEventListener('click',()=>toggleMessagePin(b.dataset.unpin)));
  if(atBottom)el.scrollTop=el.scrollHeight;
  markRead();
@@ -582,6 +584,7 @@ async function renderAdmin(){if(!state.admin){$('#main').innerHTML='<div class="
 function adminEditUser(id,u){showModal('<div class="modal"><h3>Account verwalten</h3><div class="field"><label>Benutzername</label><input id="adminUsername" value="'+safe(u.username)+'"></div><label><input type="checkbox" id="adminBanned" '+(u.is_banned?'checked':'')+'> Account sperren</label><div class="modal-actions"><button class="ghost" id="closeModal">Abbrechen</button><button class="primary" id="adminSave">Speichern</button></div></div>');$('#closeModal').onclick=closeModal;$('#adminSave').onclick=async()=>{const {error}=await sb.rpc('wg_admin_update_profile',{p_user_id:id,p_username:$('#adminUsername').value.trim(),p_is_banned:$('#adminBanned').checked});if(error)toast(error.message);else{closeModal();renderAdmin()}}}
 async function adminViewGroup(id){const {data:c}=await sb.from('wg_conversations').select('*').eq('id',id).single();const {data:msgs}=await sb.from('wg_messages').select('*').eq('conversation_id',id).order('created_at',{ascending:true}).limit(150);const ids=[...new Set((msgs||[]).map(m=>m.sender_id))];const prof=ids.length?await sb.from('wg_profiles').select('user_id,username').in('user_id',ids):{data:[]};const pmap=Object.fromEntries((prof.data||[]).map(p=>[p.user_id,p.username]));showModal('<div class="modal"><h3>Gruppe: '+safe(c?.title)+'</h3><p class="muted small">Gruppennachrichten · '+(msgs||[]).length+' angezeigt</p>'+((msgs||[]).map(m=>'<div class="card"><strong>'+safe(pmap[m.sender_id]||'Nutzer')+'</strong><p>'+safe(m.deleted_at?'Nachricht gelöscht':m.body)+'</p><span class="muted small">'+new Date(m.created_at).toLocaleString('de-DE')+'</span></div>').join('')||'<p class="muted">Keine Nachrichten.</p>')+'<div class="modal-actions"><button class="primary" id="closeModal">Schließen</button></div></div>');$('#closeModal').onclick=closeModal}
 let callChannelPromise=null;
+let autoJoiningInviteId=null;
 function listenForCalls(conversationId){
  if(state.incomingCallChannel)sb.removeChannel(state.incomingCallChannel);
  const channel=sb.channel('wg-call-'+conversationId,{config:{broadcast:{self:false}}});
