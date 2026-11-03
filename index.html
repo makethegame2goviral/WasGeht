@@ -98,6 +98,20 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 const SB_URL='https://puddgzxqekteblmlpiqv.supabase.co';
 const SB_KEY='sb_publishable_PVR0CA2g2AXgzoUDnAE_pg_GkWb5LRb';
 const sb=createClient(SB_URL,SB_KEY);
+const WG_VAPID_PUBLIC='BPyRmzR3DMG-owOyyU0kuIGK35Sw75S71n6ST9EA1mzu-U-9QHSnvo3TiJ1zraDDA6GLbFDQsF6re_fyofLfFOI';
+function urlBase64ToUint8Array(s){const pad='='.repeat((4-s.length%4)%4);const raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...raw].map(ch=>ch.charCodeAt(0)))}
+async function registerPush(){
+ if(!('serviceWorker'in navigator)||!('PushManager'in window)||!('Notification'in window)){toast('Push wird von diesem Browser nicht unterstützt.');return}
+ const permission=await Notification.requestPermission();if(permission!=='granted'){toast('Mitteilungen wurden nicht erlaubt.');return}
+ const reg=await navigator.serviceWorker.ready;
+ let sub=await reg.pushManager.getSubscription();
+ if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(WG_VAPID_PUBLIC)});
+ const {error}=await sb.from('wg_push_subscriptions').upsert({user_id:state.user.id,endpoint:sub.endpoint,subscription:sub.toJSON()},{onConflict:'user_id,endpoint'});
+ if(error)throw error;
+ toast('Push-Mitteilungen sind auf diesem Gerät eingerichtet.');
+}
+async function sendPushForMessage(id){try{const {error}=await sb.functions.invoke('wg-send-push',{body:{message_id:id}});if(error)console.warn('Push-Zustellung:',error.message)}catch(e){console.warn('Push-Zustellung fehlgeschlagen',e)}}
+
 const $=s=>document.querySelector(s);
 const state={user:null,profile:null,view:'chats',conversation:null,conversations:[],messages:[],contacts:[],authMode:'login',realtime:null,call:null,callChannel:null,replyTo:null,admin:false,profiles:[],showArchived:false,incomingCallChannel:null};
 const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -152,7 +166,7 @@ async function boot(){
   state.profile=profile;const {data:adm,error:adminError}=await sb.from('wg_admins').select('user_id').eq('user_id',user.id).maybeSingle();if(adminError)throw adminError;state.admin=!!adm;
   $('#auth').classList.add('hidden');$('#app').classList.remove('hidden');$('#miniName').textContent=profile.username;$('#miniAvatar').innerHTML=profile.avatar_path?'':'<img src="./icon.svg?v=4" alt="WasGeht">';
   if(profile.avatar_path){const {data:av}=await sb.storage.from('wg-media').createSignedUrl(profile.avatar_path,3600);if(av?.signedUrl)$('#miniAvatar').innerHTML='<img src="'+av.signedUrl+'" alt="">'}
-  $('#adminNav').classList.toggle('hidden',!state.admin);await heartbeat();await loadView('chats');subscribeGlobal();if(!window.__wgHeartbeat)window.__wgHeartbeat=setInterval(heartbeat,45000);
+  $('#adminNav').classList.toggle('hidden',!state.admin);await heartbeat();await loadView('chats');const targetConversation=new URLSearchParams(location.search).get('conversation');if(targetConversation){await openConversation(targetConversation);history.replaceState({},'',location.pathname)}subscribeGlobal();if(!window.__wgHeartbeat)window.__wgHeartbeat=setInterval(heartbeat,45000);
  }catch(e){state.user=null;state.profile=null;$('#app').classList.add('hidden');$('#auth').classList.remove('hidden');throw e}finally{state.booting=false;bootPromise=null}
  })();
  return bootPromise;
@@ -269,7 +283,7 @@ async function forwardMessage(id){
  };
 }
 async function markRead(){const unread=state.messages.filter(m=>m.sender_id!==state.user.id);for(const m of unread){await sb.from('wg_message_receipts').upsert({message_id:m.id,user_id:state.user.id,delivered_at:new Date().toISOString(),read_at:new Date().toISOString()},{onConflict:'message_id,user_id'}).catch(()=>{})}}
-async function sendMessage(){const input=$('#messageInput');const body=input.value.trim();if(!body||!state.conversation)return;input.value='';const payload={conversation_id:state.conversation.id,sender_id:state.user.id,body,message_type:'text',reply_to:state.replyTo};state.replyTo=null;input.placeholder='Nachricht schreiben …';const {error}=await sb.from('wg_messages').insert(payload);if(error){toast(error.message);input.value=body}else loadMessages()}
+async function sendMessage(){const input=$('#messageInput');const body=input.value.trim();if(!body||!state.conversation)return;input.value='';const payload={conversation_id:state.conversation.id,sender_id:state.user.id,body,message_type:'text',reply_to:state.replyTo};state.replyTo=null;input.placeholder='Nachricht schreiben …';const {data,error}=await sb.from('wg_messages').insert(payload).select('id').single();if(error){toast(error.message);input.value=body}else{loadMessages();sendPushForMessage(data.id)}}
 async function editMessage(id){const m=state.messages.find(x=>x.id===id);const body=prompt('Nachricht bearbeiten:',m?.body||'');if(body===null)return;const {error}=await sb.from('wg_messages').update({body:body,edited_at:new Date().toISOString()}).eq('id',id);if(error)toast(error.message);else loadMessages()}
 async function deleteMessage(id){if(!confirm('Nachricht für alle in diesem Chat löschen?'))return;const {error}=await sb.from('wg_messages').update({body:'',deleted_at:new Date().toISOString()}).eq('id',id);if(error)toast(error.message);else loadMessages()}
 async function reactMessage(id,emoji='❤️'){
@@ -303,13 +317,13 @@ async function recordVoiceMessage(){
       const path=state.user.id+'/'+state.conversation.id+'/'+crypto.randomUUID()+'.'+ext;
       const up=await sb.storage.from('wg-media').upload(path,blob,{contentType:mime.split(';')[0],upsert:false});
       if(up.error){toast(up.error.message);return}
-      const {error}=await sb.from('wg_messages').insert({conversation_id:state.conversation.id,sender_id:state.user.id,body:'',message_type:'audio',media_path:path});
-      if(error)toast(error.message);else{toast('Sprachnachricht gesendet');loadMessages()}
+      const {data:msg,error}=await sb.from('wg_messages').insert({conversation_id:state.conversation.id,sender_id:state.user.id,body:'',message_type:'audio',media_path:path}).select('id').single();
+      if(error)toast(error.message);else{toast('Sprachnachricht gesendet');loadMessages();sendPushForMessage(msg.id)}
     };
     recorder.start();toast('Aufnahme läuft – tippe erneut zum Beenden.');
   }catch(e){toast('Mikrofon nicht verfügbar: '+e.message)}
 }
-async function uploadMessageFile(e){const f=e.target.files?.[0];if(!f||!state.conversation)return;if(f.size>50*1024*1024){toast('Datei darf höchstens 50 MB groß sein.');return}const path=state.user.id+'/'+state.conversation.id+'/'+crypto.randomUUID()+'_'+f.name.replace(/[^A-Za-z0-9._-]/g,'_');const up=await sb.storage.from('wg-media').upload(path,f,{contentType:f.type,upsert:false});if(up.error){toast(up.error.message);return}const type=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':f.type.startsWith('audio/')?'audio':'file';const {error}=await sb.from('wg_messages').insert({conversation_id:state.conversation.id,sender_id:state.user.id,body:f.name,message_type:type,media_path:path});if(error)toast(error.message);else loadMessages();e.target.value=''}
+async function uploadMessageFile(e){const f=e.target.files?.[0];if(!f||!state.conversation)return;if(f.size>50*1024*1024){toast('Datei darf höchstens 50 MB groß sein.');return}const path=state.user.id+'/'+state.conversation.id+'/'+crypto.randomUUID()+'_'+f.name.replace(/[^A-Za-z0-9._-]/g,'_');const up=await sb.storage.from('wg-media').upload(path,f,{contentType:f.type,upsert:false});if(up.error){toast(up.error.message);return}const type=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':f.type.startsWith('audio/')?'audio':'file';const {data:msg,error}=await sb.from('wg_messages').insert({conversation_id:state.conversation.id,sender_id:state.user.id,body:f.name,message_type:type,media_path:path}).select('id').single();if(error)toast(error.message);else{loadMessages();sendPushForMessage(msg.id)}e.target.value=''}
 async function showGroupInfo(c){
   const {data:members,error:memberError}=await sb.from('wg_conversation_members').select('user_id,role').eq('conversation_id',c.id);
   if(memberError){toast(memberError.message);return}
@@ -494,12 +508,7 @@ async function renderProfile(){
   };
   $('#profileNotifications').onclick=async()=>{
     if(!('Notification'in window)){toast('Dieser Browser unterstützt keine Benachrichtigungen.');return}
-    const permission=await Notification.requestPermission();
-    if(permission==='granted'){
-      const reg=await navigator.serviceWorker?.ready;
-      reg?.showNotification('WasGeht',{body:'Benachrichtigungen sind auf diesem Gerät aktiviert.',icon:'./icon.svg'});
-      toast('Benachrichtigungen aktiviert');
-    }else toast('Benachrichtigungen wurden nicht erlaubt');
+    try{await registerPush()}catch(e){toast('Push-Einrichtung fehlgeschlagen: '+(e?.message||e))}
   };
   $('#deleteAccount').onclick=async()=>{
     if(!confirm('Möchtest du deinen WasGeht-Account und deine Daten wirklich endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.'))return;
