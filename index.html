@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#12845a">
-<meta name="description" content="WasGeht – Deine Chats. Deine Welt.">
+<meta name="description" content="WasGeht – Deine Chats. Deine Welt 1.">
 <link rel="icon" type="image/svg+xml" href="./icon.svg?v=4">
 <link rel="apple-touch-icon" sizes="180x180" href="./icon.svg?v=4">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="WasGeht">
 <link rel="manifest" href="./manifest.webmanifest">
-<title>WasGeht – Deine Chats. Deine Welt.</title>
+<title>WasGeht – Deine Chats. Deine Welt 1.</title>
 <style>
 :root{--green:#12845a;--green2:#19a875;--mint:#e9f7f0;--bg:#f5f8f6;--ink:#14231d;--muted:#73827a;--line:#e4ece7;--white:#fff;--shadow:0 16px 50px rgba(17,63,43,.09)}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}button,input,textarea,select{font:inherit}button{cursor:pointer;border:0}.hidden{display:none!important}.muted{color:var(--muted)}.small{font-size:12px}.brand{display:flex;align-items:center;gap:11px;font-weight:850;letter-spacing:-.5px}.brand-mark{width:42px;height:42px;border-radius:15px;background:linear-gradient(145deg,#1bb77b,#08764e);display:grid;place-items:center;overflow:hidden;box-shadow:0 8px 18px #12845a33;flex:none}.brand-mark img{width:100%;height:100%;object-fit:cover}.brand-name{font-size:22px}.tagline{font-size:12px;color:var(--muted);font-weight:500;letter-spacing:0}
@@ -67,7 +67,7 @@
 <body>
 <div id="auth" class="auth-wrap">
   <div class="auth-card">
-    <div class="brand"><div class="brand-mark"><img src="./icon.svg?v=4" alt="WasGeht"></div><div><div class="brand-name">WasGeht</div><div class="tagline">Deine Chats. Deine Welt.</div></div></div>
+    <div class="brand"><div class="brand-mark"><img src="./icon.svg?v=4" alt="WasGeht"></div><div><div class="brand-name">WasGeht</div><div class="tagline">Deine Chats. Deine Welt 1.</div></div></div>
     <h1 id="authTitle">Schön, dass du da bist.</h1>
     <p id="authSubtitle">Melde dich mit deinem Benutzernamen an oder erstelle einen Account.</p>
     <div id="authMessage" class="message hidden"></div>
@@ -82,7 +82,7 @@
 </div>
 <div id="app" class="hidden">
   <aside class="rail">
-    <div class="brand"><div class="brand-mark"><img src="./icon.svg?v=4" alt="WasGeht"></div><div><div class="brand-name">WasGeht</div><div class="tagline">Deine Chats. Deine Welt.</div></div></div>
+    <div class="brand"><div class="brand-mark"><img src="./icon.svg?v=4" alt="WasGeht"></div><div><div class="brand-name">WasGeht</div><div class="tagline">Deine Chats. Deine Welt 1.</div></div></div>
     <nav class="nav" id="nav">
       <button class="active" data-view="chats"><span class="ico">▣</span><span class="nav-label">Chats</span></button>
       <button data-view="contacts"><span class="ico">♙</span><span class="nav-label">Kontakte</span></button>
@@ -98,7 +98,7 @@
     <div class="list-content" id="listContent"></div>
   </section>
   <main class="main" id="main">
-    <div class="empty"><div><div class="empty-mark">✉</div><h2>Deine Chats. Deine Welt.</h2><p>Wähle einen Chat aus oder starte eine neue Unterhaltung über deine Kontakte.</p></div></div>
+    <div class="empty"><div><div class="empty-mark">✉</div><h2>Deine Chats. Deine Welt 1.</h2><p>Wähle einen Chat aus oder starte eine neue Unterhaltung über deine Kontakte.</p></div></div>
   </main>
 </div>
 <div id="modalRoot"></div>
@@ -612,7 +612,7 @@ function listenForCalls(conversationId){
     };
     await pc.setRemoteDescription(payload.description);
     for(const candidate of (state.pendingCallCandidates||[]).splice(0))await pc.addIceCandidate(candidate);
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:!!payload.video});
+    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:!!payload.video});
     call.stream=stream;
     stream.getTracks().forEach(t=>pc.addTrack(t,stream));
     const answer=await pc.createAnswer();await pc.setLocalDescription(answer);
@@ -636,7 +636,7 @@ async function startCall(video){
  if(!state.conversation||state.conversation.kind!=='dm')return;
  if(state.call){toast('Du bist bereits in einem Anruf.');return}
  try{
-  const stream=await navigator.mediaDevices.getUserMedia({audio:true,video});
+  const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video});
   const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
   stream.getTracks().forEach(t=>pc.addTrack(t,stream));
   const channel=state.incomingCallChannel||sb.channel('wg-call-'+state.conversation.id,{config:{broadcast:{self:false}}});
@@ -658,7 +658,7 @@ async function startCall(video){
   $('#callOverlay').classList.remove('hidden');$('#callTitle').textContent=video?'Videoanruf':'Sprachanruf';$('#callState').textContent='Anruf wird gestartet …';
   pc.onicecandidate=e=>{if(e.candidate)channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,candidate:e.candidate}})};
   pc.ontrack=e=>{
-   const remoteStream=e.streams?.[0];if(remoteStream){$('#remoteVideo').srcObject=remoteStream;const audio=$('#remoteAudio');if(audio){audio.srcObject=remoteStream;audio.muted=false;audio.volume=1;audio.play().catch(()=>{});}$('#remoteVideo').play().catch(()=>{});}
+   const remoteStream=e.streams?.[0];if(remoteStream){$('#remoteVideo').srcObject=remoteStream;$('#remoteVideo').muted=true;const audio=$('#remoteAudio');if(audio){audio.srcObject=remoteStream;audio.muted=false;audio.volume=1;audio.play().catch(()=>{});}$('#remoteVideo').play().catch(()=>{});}
    $('#callState').textContent='Verbunden';
   };
   const offer=await pc.createOffer();await pc.setLocalDescription(offer);
@@ -674,7 +674,7 @@ async function endCall(sendEnd){
  if(state.call?.stream)state.call.stream.getTracks().forEach(t=>t.stop());
  if(state.call?.pc)state.call.pc.close();
  state.call=null;state.callChannel=null;
- $('#localVideo').srcObject=null;$('#remoteVideo').srcObject=null;
+ $('#localVideo').srcObject=null;$('#remoteVideo').srcObject=null;$('#remoteAudio').srcObject=null;
  $('#callOverlay').classList.add('hidden');
 }
 window.wgGo=loadView;
