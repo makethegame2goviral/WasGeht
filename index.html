@@ -113,7 +113,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 const SB_URL='https://puddgzxqekteblmlpiqv.supabase.co';
 const SB_KEY='sb_publishable_PVR0CA2g2AXgzoUDnAE_pg_GkWb5LRb';
 const sb=createClient(SB_URL,SB_KEY);
-const WG_VAPID_PUBLIC='BPyRmzR3DMG-owOyyU0kuIGK35Sw75S71n6ST9EA1mzu-U-9QHSnvo3TiJ1zraDDA6GLbFDQsF6re_fyofLfFOI';
+const WG_VAPID_PUBLIC='BH-av83oXzQF0NmSt3saZAVzyLozLDl79BFtCoHfQl2eJWdtP-WQ08BC9xrQEPeW8ZlGhfqgwBIKeuTMqiGny0A';
 function urlBase64ToUint8Array(s){const pad='='.repeat((4-s.length%4)%4);const raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...raw].map(ch=>ch.charCodeAt(0)))}
 async function registerPush(){
  if(!('serviceWorker'in navigator)||!('PushManager'in window)||!('Notification'in window)){toast('Push wird von diesem Browser nicht unterstützt.');return}
@@ -125,7 +125,7 @@ async function registerPush(){
  if(error)throw error;
  toast('Push-Mitteilungen sind auf diesem Gerät eingerichtet.');
 }
-async function sendPushForMessage(id){try{const {error}=await sb.functions.invoke('wg-send-push',{body:{message_id:id}});if(error)console.warn('Push-Zustellung:',error.message)}catch(e){console.warn('Push-Zustellung fehlgeschlagen',e)}}
+async function sendPushForMessage(id){try{const {data,error}=await sb.functions.invoke('wg-send-push',{body:{message_id:id}});if(error){console.warn('Push-Zustellung:',error.message);toast('Nachricht gesendet, Push-Versand fehlgeschlagen: '+error.message);return}if(data?.error)toast('Push-Versand: '+data.error)}catch(e){console.warn('Push-Zustellung fehlgeschlagen',e);toast('Push-Versand fehlgeschlagen.')}}
 
 const $=s=>document.querySelector(s);
 const state={user:null,profile:null,view:'chats',conversation:null,conversations:[],messages:[],contacts:[],authMode:'login',realtime:null,call:null,callChannel:null,replyTo:null,admin:false,profiles:[],showArchived:false,incomingCallChannel:null};
@@ -495,7 +495,7 @@ async function renderProfile(){
   const p=state.profile;
   const {data:avatarData}=p.avatar_path?await sb.storage.from('wg-media').createSignedUrl(p.avatar_path,3600):{data:null};
   const avatar=avatarData?.signedUrl?'<img src="'+avatarData.signedUrl+'" alt="Profilbild">':safe(initials(p.username));
-  $('#main').innerHTML='<div class="section-view"><h2>Dein Profil</h2><p class="intro">So sehen dich andere Nutzer auf WasGeht.</p><div class="card"><div class="card-row"><div class="avatar" id="profileAvatar">'+avatar+'</div><div class="grow"><strong>'+safe(p.username)+'</strong><p>Online / Offline wird automatisch angezeigt.</p></div></div><div class="field"><label>Profilbild</label><input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></div><button class="secondary" id="uploadAvatar">Profilbild hochladen</button><div class="field"><label>Benutzername</label><input id="profileUsername" maxlength="24" value="'+safe(p.username)+'"></div><div class="field"><label>Bio</label><textarea id="profileBio" maxlength="160" rows="2">'+safe(p.bio||'')+'</textarea></div><div class="field"><label>Status / Info</label><input id="profileStatus" maxlength="80" value="'+safe(p.status_text||'')+'"></div><button class="primary" id="saveProfile">Profil speichern</button><div class="actions" style="margin-top:12px"><button class="secondary" id="changePassword">Passwort ändern</button><button class="secondary" id="profileNotifications">Benachrichtigungen aktivieren</button><button class="danger" id="deleteAccount">Account endgültig löschen</button></div></div><div class="card"><strong>Datenschutz</strong><p class="muted small">Private Einzelchats sind nur für die jeweiligen Chatmitglieder sichtbar. Der WasGeht-Admin kann Gruppen und deren Nachrichten verwalten und lesen, aber keine privaten Einzelchats.</p></div></div>';
+  $('#main').innerHTML='<div class="section-view"><h2>Dein Profil</h2><p class="intro">So sehen dich andere Nutzer auf WasGeht.</p><div class="card"><div class="card-row"><div class="avatar" id="profileAvatar">'+avatar+'</div><div class="grow"><strong>'+safe(p.username)+'</strong><p>Online / Offline wird automatisch angezeigt.</p></div></div><div class="field"><label>Profilbild</label><input id="avatarFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></div><button class="secondary" id="uploadAvatar">Profilbild hochladen</button><div class="field"><label>Benutzername</label><input id="profileUsername" maxlength="24" value="'+safe(p.username)+'"></div><div class="field"><label>Bio</label><textarea id="profileBio" maxlength="160" rows="2">'+safe(p.bio||'')+'</textarea></div><div class="field"><label>Status / Info</label><input id="profileStatus" maxlength="80" value="'+safe(p.status_text||'')+'"></div><button class="primary" id="saveProfile">Profil speichern</button><div class="actions" style="margin-top:12px"><button class="secondary" id="changePassword">Passwort ändern</button><button class="secondary" id="profileNotifications">Benachrichtigungen …</button><button class="danger" id="deleteAccount">Account endgültig löschen</button></div></div><div class="card"><strong>Datenschutz</strong><p class="muted small">Private Einzelchats sind nur für die jeweiligen Chatmitglieder sichtbar. Der WasGeht-Admin kann Gruppen und deren Nachrichten verwalten und lesen, aber keine privaten Einzelchats.</p></div></div>';
   $('#uploadAvatar').onclick=async()=>{
     const file=$('#avatarFile').files?.[0];if(!file){toast('Wähle zuerst ein Bild aus.');return}
     if(!file.type.startsWith('image/')||file.size>5*1024*1024){toast('Bitte ein Bild bis 5 MB auswählen.');return}
@@ -521,9 +521,41 @@ async function renderProfile(){
     const {error}=await sb.auth.updateUser({password});
     if(error)toast(error.message);else toast('Passwort geändert');
   };
-  $('#profileNotifications').onclick=async()=>{
-    if(!('Notification'in window)){toast('Dieser Browser unterstützt keine Benachrichtigungen.');return}
-    try{await registerPush()}catch(e){toast('Push-Einrichtung fehlgeschlagen: '+(e?.message||e))}
+  const notificationButton=$('#profileNotifications');
+  let pushActive=false;
+  try{
+    const reg=await navigator.serviceWorker?.ready;
+    const sub=await reg?.pushManager?.getSubscription();
+    const {data:stored}=await sb.from('wg_push_subscriptions').select('id').eq('user_id',state.user.id).limit(1);
+    pushActive=!!sub&&!!stored?.length;
+  }catch(e){console.warn('Push-Status konnte nicht geladen werden',e)}
+  notificationButton.textContent=pushActive?'Benachrichtigungen deaktivieren':'Benachrichtigungen aktivieren';
+  notificationButton.classList.toggle('danger',pushActive);
+  notificationButton.onclick=async()=>{
+    notificationButton.disabled=true;
+    try{
+      if(pushActive){
+        const reg=await navigator.serviceWorker?.ready;
+        const sub=await reg?.pushManager?.getSubscription();
+        if(sub)await sub.unsubscribe();
+        const {error}=await sb.from('wg_push_subscriptions').delete().eq('user_id',state.user.id);
+        if(error)throw error;
+        pushActive=false;
+        notificationButton.textContent='Benachrichtigungen aktivieren';
+        notificationButton.classList.remove('danger');
+        toast('Benachrichtigungen sind für dieses Gerät deaktiviert.');
+      }else{
+        if(!('Notification'in window)){toast('Dieser Browser unterstützt keine Benachrichtigungen.');return}
+        await registerPush();
+        const reg=await navigator.serviceWorker.ready;
+        const sub=await reg.pushManager.getSubscription();
+        const {data:stored}=await sb.from('wg_push_subscriptions').select('id').eq('user_id',state.user.id).limit(1);
+        pushActive=!!sub&&!!stored?.length;
+        notificationButton.textContent=pushActive?'Benachrichtigungen deaktivieren':'Benachrichtigungen aktivieren';
+        notificationButton.classList.toggle('danger',pushActive);
+      }
+    }catch(e){toast('Benachrichtigungen konnten nicht geändert werden: '+(e?.message||e))}
+    finally{notificationButton.disabled=false}
   };
   $('#deleteAccount').onclick=async()=>{
     if(!confirm('Möchtest du deinen WasGeht-Account und deine Daten wirklich endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.'))return;
