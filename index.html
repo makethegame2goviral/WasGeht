@@ -308,15 +308,44 @@ async function recordVoiceMessage(){
 }
 async function uploadMessageFile(e){const f=e.target.files?.[0];if(!f||!state.conversation)return;if(f.size>50*1024*1024){toast('Datei darf höchstens 50 MB groß sein.');return}const path=state.user.id+'/'+state.conversation.id+'/'+crypto.randomUUID()+'_'+f.name.replace(/[^A-Za-z0-9._-]/g,'_');const up=await sb.storage.from('wg-media').upload(path,f,{contentType:f.type,upsert:false});if(up.error){toast(up.error.message);return}const type=f.type.startsWith('image/')?'image':f.type.startsWith('video/')?'video':f.type.startsWith('audio/')?'audio':'file';const {error}=await sb.from('wg_messages').insert({conversation_id:state.conversation.id,sender_id:state.user.id,body:f.name,message_type:type,media_path:path});if(error)toast(error.message);else loadMessages();e.target.value=''}
 async function showGroupInfo(c){
-  const {data:members}=await sb.from('wg_conversation_members').select('user_id,role').eq('conversation_id',c.id);
+  const {data:members,error:memberError}=await sb.from('wg_conversation_members').select('user_id,role').eq('conversation_id',c.id);
+  if(memberError){toast(memberError.message);return}
   const {data:requests}=await sb.from('wg_group_join_requests').select('*').eq('conversation_id',c.id).eq('status','pending');
-  const profiles=await sb.from('wg_profiles').select('user_id,username').in('user_id',(members||[]).map(x=>x.user_id));
+  const memberList=members||[];
+  const profiles=memberList.length?await sb.from('wg_profiles').select('user_id,username').in('user_id',memberList.map(x=>x.user_id)):{data:[]};
   const pmap=Object.fromEntries((profiles.data||[]).map(p=>[p.user_id,p.username]));
-  let html='<div class="modal"><h3>Gruppeninformationen</h3><div class="field"><label>Gruppenbild</label><input id="groupAvatarFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></div><button class="secondary" id="uploadGroupAvatar">Gruppenbild hochladen</button><div class="field"><label>Gruppenname</label><input id="editGroupTitle" maxlength="60" value="'+safe(c.title)+'"></div><div class="field"><label>Beschreibung</label><textarea id="editGroupDesc" rows="3">'+safe(c.description||'')+'</textarea></div><div class="field"><label>Gruppe</label><div class="pill">'+(c.is_public?'Öffentlich':'Privat')+'</div></div><h4>Mitglieder</h4>'+(members||[]).map(m=>'<div class="card-row"><div class="avatar">'+safe(initials(pmap[m.user_id]||'?'))+'</div><div class="grow"><strong>'+safe(pmap[m.user_id]||'Nutzer')+'</strong><p>'+(m.role==='owner'?'Gruppen-Ersteller':'Mitglied')+'</p></div></div>').join('');
-  if(requests?.length){html+='<h4>Anfragen</h4>'+requests.map(r=>'<div class="card-row"><div class="grow">Anfrage von '+safe(r.requester_id.slice(0,8))+'</div><button class="primary" data-accept-join="'+r.id+'">Annehmen</button></div>').join('')}
+  const myMembership=memberList.find(m=>m.user_id===state.user.id);
+  const canAdd=myMembership?.role==='owner';
+  let html='<div class="modal"><h3>Gruppeninformationen</h3><div class="field"><label>Gruppenbild</label><input id="groupAvatarFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></div><button class="secondary" id="uploadGroupAvatar">Gruppenbild hochladen</button><div class="field"><label>Gruppenname</label><input id="editGroupTitle" maxlength="60" value="'+safe(c.title)+'"></div><div class="field"><label>Beschreibung</label><textarea id="editGroupDesc" rows="3">'+safe(c.description||'')+'</textarea></div><div class="field"><label>Gruppe</label><div class="pill">'+(c.is_public?'Öffentlich':'Privat')+'</div></div><h4>Mitglieder ('+memberList.length+')</h4>'+memberList.map(m=>'<div class="card-row"><div class="avatar">'+safe(initials(pmap[m.user_id]||'?'))+'</div><div class="grow"><strong>'+safe(pmap[m.user_id]||'Nutzer')+'</strong><p>'+(m.role==='owner'?'Gruppen-Ersteller':'Mitglied')+'</p></div></div>').join('');
+  if(canAdd){
+    html+='<h4>Personen hinzufügen</h4><div class="field"><label>Benutzername suchen</label><input id="groupMemberSearch" placeholder="Namen eingeben …"></div><div id="groupMemberResults"><p class="muted small">Suche nach einem WasGeht-Benutzernamen.</p></div>';
+  }
+  if(requests?.length){html+='<h4>Beitrittsanfragen</h4>'+requests.map(r=>'<div class="card-row"><div class="grow">Anfrage von '+safe(r.requester_id.slice(0,8))+'</div><button class="primary" data-accept-join="'+r.id+'">Annehmen</button></div>').join('')}
   html+='<div class="modal-actions"><button class="danger" id="leaveGroup">Gruppe verlassen</button><button class="ghost" id="closeModal">Schließen</button><button class="primary" id="saveGroup">Speichern</button></div></div>';
   showModal(html);
   $('#closeModal').onclick=closeModal;
+  if(canAdd){
+    let searchTimer;
+    $('#groupMemberSearch').addEventListener('input',()=>{
+      clearTimeout(searchTimer);
+      const q=$('#groupMemberSearch').value.trim();
+      const box=$('#groupMemberResults');
+      if(q.length<2){box.innerHTML='<p class="muted small">Mindestens 2 Zeichen eingeben.</p>';return}
+      searchTimer=setTimeout(async()=>{
+        const {data,error}=await sb.from('wg_profiles').select('user_id,username').ilike('username','%'+q+'%').neq('user_id',state.user.id).limit(15);
+        if(error){box.textContent=error.message;return}
+        const current=new Set(memberList.map(m=>m.user_id));
+        const candidates=(data||[]).filter(p=>!current.has(p.user_id));
+        box.innerHTML=candidates.map(p=>'<div class="card-row" style="padding:8px 0"><div class="avatar">'+safe(initials(p.username))+'</div><div class="grow"><strong>'+safe(p.username)+'</strong></div><button class="secondary" data-add-group-member="'+p.user_id+'">Hinzufügen</button></div>').join('')||'<p class="muted small">Keine passenden neuen Nutzer gefunden.</p>';
+        box.querySelectorAll('[data-add-group-member]').forEach(b=>b.onclick=async()=>{
+          b.disabled=true;b.textContent='Wird hinzugefügt …';
+          const {error:addError}=await sb.rpc('wg_add_group_member',{p_conversation_id:c.id,p_user_id:b.dataset.addGroupMember});
+          if(addError){toast(addError.message);b.disabled=false;b.textContent='Hinzufügen'}
+          else{toast('Person zur Gruppe hinzugefügt');showGroupInfo(c)}
+        });
+      },250);
+    });
+  }
   $('#uploadGroupAvatar').onclick=async()=>{
     const file=$('#groupAvatarFile').files?.[0];if(!file){toast('Wähle zuerst ein Bild aus.');return}
     if(!file.type.startsWith('image/')||file.size>5*1024*1024){toast('Bitte ein Bild bis 5 MB auswählen.');return}
