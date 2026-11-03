@@ -47,6 +47,21 @@
   .call-buttons{margin-top:10px;gap:10px}
   .call-buttons button{width:48px;height:48px}
 }
+
+/* iPhone/iPad Hochkant: Navigation dauerhaft sichtbar, auch als installierte Web-App. */
+@media screen and (max-width:760px) and (orientation:portrait){
+  #app{display:flex!important;flex-direction:column!important;height:100dvh;min-height:0;overflow:hidden}
+  .rail{order:2!important;position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%!important;height:calc(68px + env(safe-area-inset-bottom))!important;padding:5px 8px calc(5px + env(safe-area-inset-bottom))!important;display:flex!important;z-index:100!important;background:#fff!important;border-top:1px solid var(--line)!important;border-right:0!important}
+  .rail .brand,.rail-bottom{display:none!important}
+  .nav{display:flex!important;flex-direction:row!important;justify-content:space-around!important;align-items:center!important;gap:2px!important;width:100%!important;height:100%!important}
+  .nav button{display:flex!important;flex:1 1 0!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:3px!important;min-width:0!important;padding:5px 1px!important;font-size:10px!important}
+  .nav .ico{display:block!important;font-size:19px!important;line-height:1.1!important}
+  .nav .nav-label{display:block!important;font-size:9px!important;white-space:nowrap!important}
+  .list-panel{order:0!important;flex:1 1 auto!important;width:100%!important;height:auto!important;min-height:0!important;overflow:auto!important;padding-bottom:calc(70px + env(safe-area-inset-bottom))!important}
+  .main{order:1!important;flex:1 1 auto!important;width:100%!important;height:auto!important;min-height:0!important;padding-bottom:calc(68px + env(safe-area-inset-bottom))!important;overflow:hidden!important}
+  #app.chat-open .list-panel{display:none!important}
+  #app.chat-open .main{display:flex!important}
+}
 </style>
 </head>
 <body>
@@ -451,7 +466,7 @@ async function renderGroups(){
 function groupCard(g,joined){return '<div class="card" data-group-card="'+safe((g.title||'').toLowerCase())+'"><div class="card-row"><div class="avatar">👥</div><div class="grow"><strong>'+safe(g.title)+'</strong><p>'+safe(g.description||'Keine Beschreibung')+'</p></div><span class="pill">Öffentlich</span></div><div class="actions">'+(joined?'<button class="secondary" data-open-group="'+g.id+'">Öffnen</button>':'<button class="primary" data-join-group="'+g.id+'">Anfrage senden</button>')+'</div></div>'}
 function createGroupDialog(){showModal('<div class="modal"><h3>Neue Gruppe erstellen</h3><div class="field"><label>Gruppenname</label><input id="newGroupName" maxlength="60" placeholder="Meine Gruppe"></div><div class="field"><label>Beschreibung</label><textarea id="newGroupDescription" rows="3" placeholder="Worum geht es?"></textarea></div><label><input type="checkbox" id="newGroupPublic"> Öffentliche Gruppe</label><div class="modal-actions"><button class="ghost" id="cancelModal">Abbrechen</button><button class="primary" id="createGroupBtn">Erstellen</button></div></div>');$('#cancelModal').onclick=closeModal;$('#createGroupBtn').onclick=async()=>{const {data,error}=await sb.rpc('wg_create_group',{p_title:$('#newGroupName').value.trim(),p_description:$('#newGroupDescription').value.trim(),p_is_public:$('#newGroupPublic').checked});if(error)toast(error.message);else{closeModal();await loadView('chats');openConversation(data);toast('Gruppe erstellt')}}}
 async function renderStatuses(){
-  const {data,error}=await sb.from('wg_statuses').select('*').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false});
+  const {data,error}=await sb.from('wg_statuses').select('*').or('user_id.eq.'+state.user.id+',expires_at.gt.'+new Date().toISOString()).order('created_at',{ascending:false});
   const ids=[...new Set((data||[]).map(s=>s.user_id))];
   const prof=ids.length?await sb.from('wg_profiles').select('user_id,username').in('user_id',ids):{data:[]};
   const pmap=Object.fromEntries((prof.data||[]).map(p=>[p.user_id,p.username]));
