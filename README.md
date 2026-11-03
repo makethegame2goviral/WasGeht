@@ -9,7 +9,7 @@
 - Username search, contact requests, accept/decline, block and unblock.
 - Private one-to-one chats and public/private groups.
 - Public-group join requests; a current group member can accept a request.
-- Group creators are owners; group members can edit group name and description.
+- Group creators are owners; group members can edit group name, picture and description.
 - Existing group history is visible to newly accepted members.
 - Text messages, image/video/audio attachments, in-app voice recording, replies, reactions, edit/delete own messages.
 - Read receipts are written when a recipient opens a conversation; the UI shows sent/read state.
@@ -61,5 +61,5 @@ This is an early connected prototype, not a finished WhatsApp replacement. Test 
 
 - Browser notifications currently work only while the site is open. True background push notifications need VAPID credentials and a protected push service.
 - Voice/video calls are a basic WebRTC prototype using STUN only. Calls may fail on some networks; reliable calls need TURN infrastructure and a more complete incoming-call flow.
-- Status photos/videos and profile photos are supported; stickers/GIF search, message forwarding, pinned chats/messages, chat archive/mute, and account deletion are not yet implemented.
+- Status photos/videos, profile photos and group pictures are supported; stickers/GIF search, message forwarding, pinned chats/messages, chat archive/mute, and account deletion are not yet implemented.
 - The free hosting/database plans have usage, storage and inactivity limits. This cannot be guaranteed to stay free or run without limits.
