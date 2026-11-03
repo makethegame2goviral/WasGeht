@@ -530,8 +530,11 @@ async function renderProfile(){
   try{
     const reg=await navigator.serviceWorker?.ready;
     const sub=await reg?.pushManager?.getSubscription();
+    const wanted=urlBase64ToUint8Array(WG_VAPID_PUBLIC);
+    const current=sub?.options?.applicationServerKey?new Uint8Array(sub.options.applicationServerKey):null;
+    const keyMatches=!!current&&current.length===wanted.length&&current.every((v,i)=>v===wanted[i]);
     const {data:stored}=await sb.from('wg_push_subscriptions').select('id').eq('user_id',state.user.id).limit(1);
-    pushActive=!!sub&&!!stored?.length;
+    pushActive=!!sub&&keyMatches&&!!stored?.length;
   }catch(e){console.warn('Push-Status konnte nicht geladen werden',e)}
   notificationButton.textContent=pushActive?'Benachrichtigungen deaktivieren':'Benachrichtigungen aktivieren';
   notificationButton.classList.toggle('danger',pushActive);
