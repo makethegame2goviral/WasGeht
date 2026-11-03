@@ -454,7 +454,9 @@ async function renderProfile(){
 async function renderAdmin(){if(!state.admin){$('#main').innerHTML='<div class="empty"><div><div class="empty-mark">♛</div><h2>Adminzugang nicht eingerichtet</h2><p>Der Account WasGehtAdminYusuf muss nach der Registrierung einmalig in der Supabase-Tabelle wg_admins freigeschaltet werden.</p></div></div>';return}const users=await sb.from('wg_profiles').select('*').order('created_at',{ascending:false});const groups=await sb.from('wg_conversations').select('*').eq('kind','group').order('created_at',{ascending:false});$('#main').innerHTML='<div class="section-view"><h2>Admin-Dashboard</h2><p class="intro">Konten und Gruppen verwalten. Private Einzelchats sind hier absichtlich nicht verfügbar.</p><h3>Accounts ('+(users.data||[]).length+')</h3>'+(users.data||[]).map(u=>'<div class="card card-row"><div class="avatar">'+safe(initials(u.username))+'</div><div class="grow"><strong>'+safe(u.username)+'</strong><p>'+(u.is_banned?'Gesperrt':'Aktiv')+'</p></div><button class="secondary" data-admin-edit="'+u.user_id+'">Verwalten</button></div>').join('')+'<h3>Gruppen ('+(groups.data||[]).length+')</h3>'+(groups.data||[]).map(g=>'<div class="card card-row"><div class="avatar">👥</div><div class="grow"><strong>'+safe(g.title)+'</strong><p>'+(g.is_public?'Öffentlich':'Privat')+'</p></div><button class="secondary" data-admin-join="'+g.id+'">Beitreten</button><button class="secondary" data-admin-group="'+g.id+'">Gruppe ansehen</button></div>').join('');document.querySelectorAll('[data-admin-edit]').forEach(b=>b.onclick=()=>adminEditUser(b.dataset.adminEdit,users.data.find(u=>u.user_id===b.dataset.adminEdit)));document.querySelectorAll('[data-admin-group]').forEach(b=>b.onclick=()=>adminViewGroup(b.dataset.adminGroup));document.querySelectorAll('[data-admin-join]').forEach(b=>b.onclick=async()=>{const {error}=await sb.rpc('wg_admin_join_group',{p_conversation_id:b.dataset.adminJoin});if(error)toast(error.message);else{toast('Admin ist der Gruppe beigetreten');renderAdmin()}})}
 function adminEditUser(id,u){showModal('<div class="modal"><h3>Account verwalten</h3><div class="field"><label>Benutzername</label><input id="adminUsername" value="'+safe(u.username)+'"></div><label><input type="checkbox" id="adminBanned" '+(u.is_banned?'checked':'')+'> Account sperren</label><div class="modal-actions"><button class="ghost" id="closeModal">Abbrechen</button><button class="primary" id="adminSave">Speichern</button></div></div>');$('#closeModal').onclick=closeModal;$('#adminSave').onclick=async()=>{const {error}=await sb.rpc('wg_admin_update_profile',{p_user_id:id,p_username:$('#adminUsername').value.trim(),p_is_banned:$('#adminBanned').checked});if(error)toast(error.message);else{closeModal();renderAdmin()}}}
 async function adminViewGroup(id){const {data:c}=await sb.from('wg_conversations').select('*').eq('id',id).single();const {data:msgs}=await sb.from('wg_messages').select('*').eq('conversation_id',id).order('created_at',{ascending:true}).limit(150);const ids=[...new Set((msgs||[]).map(m=>m.sender_id))];const prof=ids.length?await sb.from('wg_profiles').select('user_id,username').in('user_id',ids):{data:[]};const pmap=Object.fromEntries((prof.data||[]).map(p=>[p.user_id,p.username]));showModal('<div class="modal"><h3>Gruppe: '+safe(c?.title)+'</h3><p class="muted small">Gruppennachrichten · '+(msgs||[]).length+' angezeigt</p>'+((msgs||[]).map(m=>'<div class="card"><strong>'+safe(pmap[m.sender_id]||'Nutzer')+'</strong><p>'+safe(m.deleted_at?'Nachricht gelöscht':m.body)+'</p><span class="muted small">'+new Date(m.created_at).toLocaleString('de-DE')+'</span></div>').join('')||'<p class="muted">Keine Nachrichten.</p>')+'<div class="modal-actions"><button class="primary" id="closeModal">Schließen</button></div></div>');$('#closeModal').onclick=closeModal}
+let callChannelPromise=null;
 async function ensureCallChannel(conversationId){
+ if(state.callChannel&&state.callChannel.topic==='realtime:wg-call-'+conversationId&&callChannelPromise)return callChannelPromise;
  if(state.callChannel&&state.callChannel.topic==='realtime:wg-call-'+conversationId)return state.callChannel;
  if(state.incomingCallChannel)await sb.removeChannel(state.incomingCallChannel);
  const channel=sb.channel('wg-call-'+conversationId,{config:{broadcast:{self:false}}});
@@ -480,8 +482,8 @@ async function ensureCallChannel(conversationId){
     $('#remoteVideo').srcObject=call.remoteStream;$('#remoteVideo').muted=true;
     $('#localVideo').style.display=video?'block':'none';$('#remoteVideo').style.display=video?'block':'none';
     $('#callOverlay').classList.remove('hidden');$('#callTitle').textContent=video?'Videoanruf':'Sprachanruf';$('#callState').textContent='Verbinde …';
-    const queued=(state.pendingCallCandidates||[]).splice(0);for(const c of [...queued,...call.pendingCandidates.splice(0)])await call.pc.addIceCandidate(c);
     await call.pc.setRemoteDescription(payload.description);
+    const queued=(state.pendingCallCandidates||[]).splice(0);for(const c of [...queued,...call.pendingCandidates.splice(0)])await call.pc.addIceCandidate(c);
     const answer=await call.pc.createAnswer();await call.pc.setLocalDescription(answer);
     await channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,description:call.pc.localDescription}});
     $('#hangupCall').onclick=()=>endCall(true);wireCallButtons(stream,video);
@@ -492,11 +494,11 @@ async function ensureCallChannel(conversationId){
    }
   }catch(e){toast('Anrufproblem: '+(e?.message||'Verbindung fehlgeschlagen'));if(state.call)await endCall(false)}
  });
- await new Promise((resolve,reject)=>{
+ callChannelPromise=new Promise((resolve,reject)=>{
   const timer=setTimeout(()=>reject(new Error('Anrufverbindung konnte nicht aufgebaut werden.')),10000);
-  channel.subscribe(status=>{if(status==='SUBSCRIBED'){clearTimeout(timer);resolve()}else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){clearTimeout(timer);reject(new Error('Anrufserver nicht erreichbar.'))}});
+  channel.subscribe(status=>{if(status==='SUBSCRIBED'){clearTimeout(timer);resolve(channel)}else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){clearTimeout(timer);reject(new Error('Anrufserver nicht erreichbar.'))}});
  });
- return channel;
+ try{return await callChannelPromise}catch(e){callChannelPromise=null;state.callChannel=null;throw e}
 }
 function setupCallPeer(call,channel){
  call.pc.onicecandidate=e=>{if(e.candidate)channel.send({type:'broadcast',event:'signal',payload:{from:state.user.id,candidate:e.candidate}})};
