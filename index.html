@@ -109,9 +109,11 @@ $('#authForm').addEventListener('submit',async e=>{
   authBusy=false;button.disabled=false;button.textContent=state.authMode==='signup'?'Account erstellen':'Anmelden';
  }
 });
-sb.auth.onAuthStateChange((_event,session)=>{if(session&&!state.user&&!authBusy){setTimeout(()=>boot().catch(e=>showAuthMessage(e.message,true)),0)}});
+sb.auth.onAuthStateChange((_event,session)=>{if(session&&!state.user&&!authBusy){setTimeout(()=>boot().catch(e=>showAuthMessage(e.message,true)),0)}else if(!session&&state.user){state.user=null;state.profile=null;state.conversation=null;if(state.globalChannel)sb.removeChannel(state.globalChannel);state.globalChannel=null;$('#app').classList.add('hidden');$('#auth').classList.remove('hidden')}});
+let bootPromise=null;
 async function boot(){
- if(state.booting)return;state.booting=true;
+ if(bootPromise)return bootPromise;
+ bootPromise=(async()=>{state.booting=true;
  try{
   const {data:{user},error:userError}=await sb.auth.getUser();if(userError)throw userError;if(!user)return;
   state.user=user;
@@ -122,16 +124,18 @@ async function boot(){
   $('#auth').classList.add('hidden');$('#app').classList.remove('hidden');$('#miniName').textContent=profile.username;$('#miniAvatar').innerHTML=profile.avatar_path?'':'<img src="./icon.svg?v=4" alt="WasGeht">';
   if(profile.avatar_path){const {data:av}=await sb.storage.from('wg-media').createSignedUrl(profile.avatar_path,3600);if(av?.signedUrl)$('#miniAvatar').innerHTML='<img src="'+av.signedUrl+'" alt="">'}
   $('#adminNav').classList.toggle('hidden',!state.admin);await heartbeat();await loadView('chats');subscribeGlobal();if(!window.__wgHeartbeat)window.__wgHeartbeat=setInterval(heartbeat,45000);
- }catch(e){state.user=null;throw e}finally{state.booting=false}
+ }catch(e){state.user=null;state.profile=null;$('#app').classList.add('hidden');$('#auth').classList.remove('hidden');throw e}finally{state.booting=false;bootPromise=null}
+ })();
+ return bootPromise;
 }
 async function heartbeat(){if(state.user){await sb.rpc('wg_heartbeat').catch(()=>{});}}
 $('#logout').addEventListener('click',async()=>{await sb.auth.signOut();location.reload()});
-function subscribeGlobal(){if(state.globalChannel)sb.removeChannel(state.globalChannel);state.globalChannel=sb.channel('wg-global-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'wg_friend_requests',filter:'receiver_id=eq.'+state.user.id},()=>{if(state.view==='contacts')loadView('contacts');toast('Neue Kontaktanfrage')}).on('postgres_changes',{event:'INSERT',schema:'public',table:'wg_group_join_requests'},()=>{if(state.view==='groups')loadView('groups')}).on('postgres_changes',{event:'INSERT',schema:'public',table:'wg_messages'},async payload=>{const m=payload.new;if(!m||m.sender_id===state.user.id)return;const muted=(await sb.from('wg_conversation_settings').select('muted').eq('user_id',state.user.id).eq('conversation_id',m.conversation_id).maybeSingle()).data?.muted;if(muted)return;if(state.conversation?.id!==m.conversation_id){toast('Neue Nachricht erhalten');if(document.hidden&&'Notification'in window&&Notification.permission==='granted'){const reg=await navigator.serviceWorker?.ready;reg?.showNotification('WasGeht · Neue Nachricht',{body:m.body||'Du hast einen Anhang erhalten.',icon:'./icon.svg',tag:'wg-'+m.conversation_id})}}}).subscribe()}
+function subscribeGlobal(){if(!state.user?.id)return;if(state.globalChannel)sb.removeChannel(state.globalChannel);state.globalChannel=sb.channel('wg-global-'+state.user.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'wg_friend_requests',filter:'receiver_id=eq.'+state.user.id},()=>{if(state.view==='contacts')loadView('contacts');toast('Neue Kontaktanfrage')}).on('postgres_changes',{event:'INSERT',schema:'public',table:'wg_group_join_requests'},()=>{if(state.view==='groups')loadView('groups')}).on('postgres_changes',{event:'INSERT',schema:'public',table:'wg_messages'},async payload=>{const m=payload.new;if(!m||m.sender_id===state.user.id)return;const muted=(await sb.from('wg_conversation_settings').select('muted').eq('user_id',state.user.id).eq('conversation_id',m.conversation_id).maybeSingle()).data?.muted;if(muted)return;if(state.conversation?.id!==m.conversation_id){toast('Neue Nachricht erhalten');if(document.hidden&&'Notification'in window&&Notification.permission==='granted'){const reg=await navigator.serviceWorker?.ready;reg?.showNotification('WasGeht · Neue Nachricht',{body:m.body||'Du hast einen Anhang erhalten.',icon:'./icon.svg',tag:'wg-'+m.conversation_id})}}}).subscribe()}
 $('#nav').addEventListener('click',e=>{const b=e.target.closest('button[data-view]');if(!b)return;loadView(b.dataset.view)});
 function setNav(view){$('#nav').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.view===view))}
 function titleFor(view){return ({chats:'Chats',contacts:'Kontakte',groups:'Gruppen',status:'Status',profile:'Profil',admin:'Admin'})[view]||'WasGeht'}
 let viewLoadToken=0;
-async function loadView(view){const token=++viewLoadToken;state.view=view;state.conversation=null;state.replyTo=null;setNav(view);$('#listTitle').textContent=titleFor(view);$('#listSearch').value='';$('#app').classList.remove('chat-open');$('#main').innerHTML='<div class="empty"><div><div class="empty-mark">◌</div><h2>Wird geladen …</h2></div></div>';try{if(view==='chats')await loadChatList();else if(view==='contacts')await renderContacts();else if(view==='groups')await renderGroups();else if(view==='status')await renderStatuses();else if(view==='profile')await renderProfile();else if(view==='admin')await renderAdmin();if(token!==viewLoadToken)return;if(view!=='chats')$('#listContent').innerHTML=''}catch(e){if(token===viewLoadToken)$('#main').innerHTML='<div class="section-view"><p class="error">'+safe(e.message||'Laden fehlgeschlagen')+'</p></div>'}}
+async function loadView(view){if(!state.user?.id){$('#app').classList.add('hidden');$('#auth').classList.remove('hidden');showAuthMessage('Bitte melde dich erneut an.',true);return}const token=++viewLoadToken;state.view=view;state.conversation=null;state.replyTo=null;setNav(view);$('#listTitle').textContent=titleFor(view);$('#listSearch').value='';$('#app').classList.remove('chat-open');$('#main').innerHTML='<div class="empty"><div><div class="empty-mark">◌</div><h2>Wird geladen …</h2></div></div>';try{if(view==='chats')await loadChatList();else if(view==='contacts')await renderContacts();else if(view==='groups')await renderGroups();else if(view==='status')await renderStatuses();else if(view==='profile')await renderProfile();else if(view==='admin')await renderAdmin();if(token!==viewLoadToken)return;if(view!=='chats')$('#listContent').innerHTML=''}catch(e){if(token===viewLoadToken)$('#main').innerHTML='<div class="section-view"><p class="error">'+safe(e.message||'Laden fehlgeschlagen')+'</p></div>'}}
 async function loadChatList(){
  const {data:members,error}=await sb.from('wg_conversation_members').select('conversation_id').eq('user_id',state.user.id);
  if(error){toast(error.message);return}
