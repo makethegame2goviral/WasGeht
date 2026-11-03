@@ -120,7 +120,11 @@ async function registerPush(){
  const permission=await Notification.requestPermission();if(permission!=='granted'){toast('Mitteilungen wurden nicht erlaubt.');return}
  const reg=await navigator.serviceWorker.ready;
  let sub=await reg.pushManager.getSubscription();
- if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(WG_VAPID_PUBLIC)});
+ const wantedKey=urlBase64ToUint8Array(WG_VAPID_PUBLIC);
+ const currentKey=sub?.options?.applicationServerKey?new Uint8Array(sub.options.applicationServerKey):null;
+ const keyMatches=!!currentKey&&currentKey.length===wantedKey.length&&currentKey.every((v,i)=>v===wantedKey[i]);
+ if(sub&&!keyMatches){await sub.unsubscribe();sub=null}
+ if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:wantedKey});
  const {error}=await sb.from('wg_push_subscriptions').upsert({user_id:state.user.id,endpoint:sub.endpoint,subscription:sub.toJSON()},{onConflict:'user_id,endpoint'});
  if(error)throw error;
  toast('Push-Mitteilungen sind auf diesem Gerät eingerichtet.');
@@ -538,7 +542,7 @@ async function renderProfile(){
         const reg=await navigator.serviceWorker?.ready;
         const sub=await reg?.pushManager?.getSubscription();
         if(sub)await sub.unsubscribe();
-        const {error}=await sb.from('wg_push_subscriptions').delete().eq('user_id',state.user.id);
+        const {error}=await sb.from('wg_push_subscriptions').delete().eq('user_id',state.user.id).eq('endpoint',sub?.endpoint||'');
         if(error)throw error;
         pushActive=false;
         notificationButton.textContent='Benachrichtigungen aktivieren';
