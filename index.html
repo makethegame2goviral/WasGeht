@@ -137,6 +137,7 @@ function chatLocalKey(){return 'wg-chat-local-'+(state.user?.id||'guest')}
 function getChatLocal(){try{return JSON.parse(localStorage.getItem(chatLocalKey())||'{}')}catch{return {}}}
 function setChatLocal(data){try{localStorage.setItem(chatLocalKey(),JSON.stringify(data))}catch(e){toast('Lokale Chat-Einstellung konnte nicht gespeichert werden.')}}
 function getChatLocalEntry(id){return getChatLocal()[id]||{}}
+function hideMessageForMe(conversationId,messageId){const all=getChatLocal(),entry=all[conversationId]||{};entry.hiddenMessageIds=[...new Set([...(entry.hiddenMessageIds||[]),messageId])];all[conversationId]=entry;setChatLocal(all)}
 
 const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const initials=s=>(s||'?').slice(0,1).toUpperCase();
@@ -241,7 +242,7 @@ async function loadMessages(){
  if(!state.conversation)return;
  const {data,error}=await sb.from('wg_messages').select('*').eq('conversation_id',state.conversation.id).order('created_at',{ascending:true}).limit(250);
  if(error){toast(error.message);return}
- const localEntry=getChatLocalEntry(state.conversation.id);state.messages=(data||[]).filter(m=>!localEntry.clearedAt||new Date(m.created_at).getTime()>new Date(localEntry.clearedAt).getTime());
+ const localEntry=getChatLocalEntry(state.conversation.id);state.messages=(data||[]).filter(m=>(!localEntry.clearedAt||new Date(m.created_at).getTime()>new Date(localEntry.clearedAt).getTime())&&!(localEntry.hiddenMessageIds||[]).includes(m.id));
  const ids=[...new Set(state.messages.map(m=>m.sender_id))];
  const [profiles,pinRows,reactionRows]=await Promise.all([
   ids.length?sb.from('wg_profiles').select('user_id,username').in('user_id',ids):Promise.resolve({data:[]}),
@@ -271,12 +272,13 @@ async function loadMessages(){
   const time=clock+receipt;
   const pinned=pinnedIds.includes(m.id);
    const reactions=(reactionMap[m.id]||[]).reduce((out,r)=>{const same=(reactionMap[m.id]||[]).filter(x=>x.emoji===r.emoji).length;return out.includes('data-emoji="'+r.emoji+'"')?out:out+'<button class="ghost" data-react="'+m.id+'" data-emoji="'+safe(r.emoji)+'">'+safe(r.emoji)+' '+same+'</button>'},'');
-   return '<div class="bubble-row '+(mine?'mine':'')+'"><div class="bubble">'+(!mine?'<div class="sender">'+safe(pmap[m.sender_id]||'Nutzer')+'</div>':'')+'<button class="bubble-menu-trigger" type="button" aria-label="Nachrichtenmenü" data-menu-toggle="'+m.id+'">⋮</button><div class="bubble-menu" id="bubble-menu-'+m.id+'">'+(mine&&!m.deleted_at?'<button data-edit="'+m.id+'">Bearbeiten</button><button data-delete="'+m.id+'">Für alle löschen</button>':'')+'<button data-add-reaction="'+m.id+'">Reaktion</button><button data-reply="'+m.id+'">Antworten</button>'+(!m.deleted_at?'<button data-forward="'+m.id+'">Weiterleiten</button><button data-pin="'+m.id+'">'+(pinned?'Anheften lösen':'Anheften')+'</button>':'')+'<button class="menu-close" data-menu-close="'+m.id+'">✕ Schließen</button></div><div class="body">'+content+'</div><div class="time">'+time+(m.edited_at?' · bearbeitet':'')+'</div>'+ (reactions?'<div class="actions">'+reactions+'</div>':'')+'</div></div>'
+   return '<div class="bubble-row '+(mine?'mine':'')+'"><div class="bubble">'+(!mine?'<div class="sender">'+safe(pmap[m.sender_id]||'Nutzer')+'</div>':'')+'<button class="bubble-menu-trigger" type="button" aria-label="Nachrichtenmenü" data-menu-toggle="'+m.id+'">⋮</button><div class="bubble-menu" id="bubble-menu-'+m.id+'">'+(mine&&!m.deleted_at?'<button data-edit="'+m.id+'">Bearbeiten</button><button data-delete="'+m.id+'">Für alle löschen</button>':'')+(!m.deleted_at?'<button data-delete-me="'+m.id+'">Für mich löschen</button>':'')+'<button data-add-reaction="'+m.id+'">Reaktion</button><button data-reply="'+m.id+'">Antworten</button>'+(!m.deleted_at?'<button data-forward="'+m.id+'">Weiterleiten</button><button data-pin="'+m.id+'">'+(pinned?'Anheften lösen':'Anheften')+'</button>':'')+'<button class="menu-close" data-menu-close="'+m.id+'">✕ Schließen</button></div><div class="body">'+content+'</div><div class="time">'+time+(m.edited_at?' · bearbeitet':'')+'</div>'+ (reactions?'<div class="actions">'+reactions+'</div>':'')+'</div></div>'
  }).join('');
   el.querySelectorAll('[data-menu-toggle]').forEach(b=>b.addEventListener('click',()=>{const menu=$('#bubble-menu-'+b.dataset.menuToggle);document.querySelectorAll('.bubble-menu.open').forEach(x=>{if(x!==menu)x.classList.remove('open')});menu?.classList.toggle('open')}));
   el.querySelectorAll('[data-menu-close]').forEach(b=>b.addEventListener('click',()=>$('#bubble-menu-'+b.dataset.menuClose)?.classList.remove('open')));
  el.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>editMessage(b.dataset.edit)));
  el.querySelectorAll('[data-delete]').forEach(b=>b.addEventListener('click',()=>deleteMessage(b.dataset.delete)));
+ el.querySelectorAll('[data-delete-me]').forEach(b=>b.addEventListener('click',()=>deleteMessageForMe(b.dataset.deleteMe)));
  el.querySelectorAll('[data-react]').forEach(b=>b.addEventListener('click',()=>reactMessage(b.dataset.react,b.dataset.emoji)));el.querySelectorAll('[data-add-reaction]').forEach(b=>b.addEventListener('click',()=>chooseReaction(b.dataset.addReaction)));
  el.querySelectorAll('[data-reply]').forEach(b=>b.addEventListener('click',()=>{state.replyTo=b.dataset.reply;$('#messageInput').placeholder='Antwort schreiben …';$('#messageInput').focus()}));
  el.querySelectorAll('[data-forward]').forEach(b=>b.addEventListener('click',()=>forwardMessage(b.dataset.forward)));
@@ -319,6 +321,7 @@ async function markRead(){const unread=state.messages.filter(m=>m.sender_id!==st
 async function sendMessage(){const input=$('#messageInput');const body=input.value.trim();if(!body||!state.conversation)return;input.value='';const payload={conversation_id:state.conversation.id,sender_id:state.user.id,body,message_type:'text',reply_to:state.replyTo};state.replyTo=null;input.placeholder='Nachricht schreiben …';const {data,error}=await sb.from('wg_messages').insert(payload).select('id').single();if(error){toast(error.message);input.value=body}else{loadMessages();sendPushForMessage(data.id)}}
 async function editMessage(id){const m=state.messages.find(x=>x.id===id);const body=prompt('Nachricht bearbeiten:',m?.body||'');if(body===null)return;const {error}=await sb.from('wg_messages').update({body:body,edited_at:new Date().toISOString()}).eq('id',id);if(error)toast(error.message);else loadMessages()}
 async function deleteMessage(id){if(!confirm('Nachricht für alle in diesem Chat löschen?'))return;const {error}=await sb.from('wg_messages').update({body:'',deleted_at:new Date().toISOString()}).eq('id',id);if(error)toast(error.message);else loadMessages()}
+async function deleteMessageForMe(id){if(!confirm('Diese Nachricht nur für dich ausblenden? Andere sehen sie weiterhin.'))return;hideMessageForMe(state.conversation.id,id);loadMessages();toast('Nachricht nur für dich gelöscht.')}
 async function reactMessage(id,emoji='❤️'){
  const {data:existing}=await sb.from('wg_reactions').select('message_id').eq('message_id',id).eq('user_id',state.user.id).eq('emoji',emoji).maybeSingle();
  const result=existing?await sb.from('wg_reactions').delete().eq('message_id',id).eq('user_id',state.user.id).eq('emoji',emoji):await sb.from('wg_reactions').insert({message_id:id,user_id:state.user.id,emoji});
