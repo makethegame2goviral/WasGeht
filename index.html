@@ -133,6 +133,11 @@ async function sendPushForMessage(id){try{const {data,error}=await sb.functions.
 
 const $=s=>document.querySelector(s);
 const state={user:null,profile:null,view:'chats',conversation:null,conversations:[],messages:[],contacts:[],authMode:'login',realtime:null,call:null,callChannel:null,groupCall:null,groupCallChannel:null,replyTo:null,admin:false,profiles:[],showArchived:false,incomingCallChannel:null,pendingCallJoin:false};
+function chatLocalKey(){return 'wg-chat-local-'+(state.user?.id||'guest')}
+function getChatLocal(){try{return JSON.parse(localStorage.getItem(chatLocalKey())||'{}')}catch{return {}}}
+function setChatLocal(data){try{localStorage.setItem(chatLocalKey(),JSON.stringify(data))}catch(e){toast('Lokale Chat-Einstellung konnte nicht gespeichert werden.')}}
+function getChatLocalEntry(id){return getChatLocal()[id]||{}}
+
 const safe=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const initials=s=>(s||'?').slice(0,1).toUpperCase();
 function toast(t){const el=$('#toast');el.textContent=t;el.classList.remove('hidden');setTimeout(()=>el.classList.add('hidden'),3000)}
@@ -218,7 +223,7 @@ async function loadChatList(){
  const pmap=Object.fromEntries((prof.data||[]).map(p=>[p.user_id,p]));
  const settingsMap=Object.fromEntries((settings.data||[]).map(x=>[x.conversation_id,x]));
  const lastMap={};(latest.data||[]).forEach(m=>{if(!lastMap[m.conversation_id])lastMap[m.conversation_id]=m});
- const visible=state.conversations.filter(c=>!!settingsMap[c.id]?.archived===state.showArchived).sort((a,b)=>{
+ const localChats=getChatLocal();const visible=state.conversations.filter(c=>{if(!!settingsMap[c.id]?.archived!==state.showArchived)return false;const local=localChats[c.id]||{};const lastTime=lastMap[c.id]?.created_at||c.last_message_at||c.created_at;return !(local.hiddenAt&&new Date(lastTime).getTime()<=new Date(local.hiddenAt).getTime())}).sort((a,b)=>{
   const ap=settingsMap[a.id]?.pinned_at,bp=settingsMap[b.id]?.pinned_at;
   if(ap||bp)return (bp?new Date(bp).getTime():0)-(ap?new Date(ap).getTime():0);
   return new Date(lastMap[b.id]?.created_at||b.last_message_at||b.created_at)-new Date(lastMap[a.id]?.created_at||a.last_message_at||a.created_at);
@@ -236,7 +241,7 @@ async function loadMessages(){
  if(!state.conversation)return;
  const {data,error}=await sb.from('wg_messages').select('*').eq('conversation_id',state.conversation.id).order('created_at',{ascending:true}).limit(250);
  if(error){toast(error.message);return}
- state.messages=data||[];
+ const localEntry=getChatLocalEntry(state.conversation.id);state.messages=(data||[]).filter(m=>!localEntry.clearedAt||new Date(m.created_at).getTime()>new Date(localEntry.clearedAt).getTime());
  const ids=[...new Set(state.messages.map(m=>m.sender_id))];
  const [profiles,pinRows,reactionRows]=await Promise.all([
   ids.length?sb.from('wg_profiles').select('user_id,username').in('user_id',ids):Promise.resolve({data:[]}),
@@ -412,10 +417,12 @@ function showChatMore(c,other){
  const getSettings=async()=> (await sb.from('wg_conversation_settings').select('*').eq('user_id',state.user.id).eq('conversation_id',c.id).maybeSingle()).data||{};
  const draw=async()=>{
   const st=await getSettings();
-  const html='<div class="modal"><h3>Chat-Einstellungen</h3><p class="muted">Deine Einstellungen gelten nur für diesen Account.</p>'+
-   '<div class="actions"><button class="secondary" id="toggleArchive">'+(st.archived?'Aus Archiv holen':'Chat archivieren')+'</button><button class="secondary" id="togglePinChat">'+(st.pinned_at?'Chat lösen':'Chat oben anheften')+'</button><button class="secondary" id="toggleMute">'+(st.muted?'Benachrichtigungen einschalten':'Chat stummschalten')+'</button><button class="secondary" id="enableNotify">Browser-Benachrichtigungen erlauben</button>'+
+  const html='<div class="modal"><h3>Chat-Einstellungen</h3><p class="muted">Diese Aktionen gelten nur für dein Konto auf diesem Gerät. Andere Chat-Teilnehmer behalten ihre Nachrichten.</p>'+
+   '<div class="actions"><button class="secondary" id="clearChatForMe">Chat für mich leeren</button><button class="danger" id="deleteChatForMe">Chat für mich löschen</button><button class="secondary" id="toggleArchive">'+(st.archived?'Aus Archiv holen':'Chat archivieren')+'</button><button class="secondary" id="togglePinChat">'+(st.pinned_at?'Chat lösen':'Chat oben anheften')+'</button><button class="secondary" id="toggleMute">'+(st.muted?'Benachrichtigungen einschalten':'Chat stummschalten')+'</button><button class="secondary" id="enableNotify">Browser-Benachrichtigungen erlauben</button>'+
    (other?'<button class="danger" id="blockUser">Kontakt blockieren</button>':'')+'</div><div class="modal-actions"><button class="ghost" id="closeModal">Schließen</button></div></div>';
   showModal(html);$('#closeModal').onclick=closeModal;
+  $('#clearChatForMe').onclick=()=>{if(!confirm('Alle bisherigen Nachrichten aus diesem Chat nur auf deinem Gerät ausblenden? Für andere bleiben sie sichtbar.'))return;const all=getChatLocal();all[c.id]={...(all[c.id]||{}),clearedAt:new Date().toISOString()};setChatLocal(all);closeModal();loadMessages();toast('Chat für dich geleert.')};
+  $('#deleteChatForMe').onclick=()=>{if(!confirm('Diesen Chat aus deiner Chatliste entfernen und den bisherigen Verlauf nur für dich ausblenden? Andere behalten den Chat.'))return;const all=getChatLocal(),now=new Date().toISOString();all[c.id]={...(all[c.id]||{}),clearedAt:now,hiddenAt:now};setChatLocal(all);closeModal();state.conversation=null;$('#app').classList.remove('chat-open');loadView('chats');toast('Chat für dich gelöscht.')};
   $('#toggleArchive').onclick=async()=>{const {error}=await sb.from('wg_conversation_settings').upsert({user_id:state.user.id,conversation_id:c.id,archived:!st.archived},{onConflict:'user_id,conversation_id'});if(error)toast(error.message);else{closeModal();state.showArchived=false;loadView('chats')}};
   $('#togglePinChat').onclick=async()=>{const {error}=await sb.from('wg_conversation_settings').upsert({user_id:state.user.id,conversation_id:c.id,pinned_at:st.pinned_at?null:new Date().toISOString()},{onConflict:'user_id,conversation_id'});if(error)toast(error.message);else{toast(st.pinned_at?'Chat gelöst':'Chat angeheftet');draw()}};
   $('#toggleMute').onclick=async()=>{const {error}=await sb.from('wg_conversation_settings').upsert({user_id:state.user.id,conversation_id:c.id,muted:!st.muted},{onConflict:'user_id,conversation_id'});if(error)toast(error.message);else{toast(st.muted?'Benachrichtigungen aktiviert':'Chat stummgeschaltet');draw()}};
