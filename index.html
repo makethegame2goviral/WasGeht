@@ -115,9 +115,23 @@ const SB_KEY='sb_publishable_PVR0CA2g2AXgzoUDnAE_pg_GkWb5LRb';
 const sb=createClient(SB_URL,SB_KEY);
 const WG_VAPID_PUBLIC='BH-av83oXzQF0NmSt3saZAVzyLozLDl79BFtCoHfQl2eJWdtP-WQ08BC9xrQEPeW8ZlGhfqgwBIKeuTMqiGny0A';
 function urlBase64ToUint8Array(s){const pad='='.repeat((4-s.length%4)%4);const raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...raw].map(ch=>ch.charCodeAt(0)))}
+function isIOSDevice(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)}
+function isInstalledWebApp(){return window.matchMedia?.('(display-mode: standalone)').matches||navigator.standalone===true}
+function showPushHelp(reason){
+ const ios=isIOSDevice();
+ let message=reason||'';
+ if(ios&&!isInstalledWebApp())message='Bitte zuerst Safari öffnen, auf Teilen tippen und „Zum Home-Bildschirm“ wählen. Danach WasGeht über das neue Symbol öffnen und Push dort aktivieren.';
+ else if(ios&&Notification.permission==='denied')message='Die Mitteilungen sind für WasGeht gesperrt. Öffne iPad-Einstellungen → Mitteilungen → WasGeht und aktiviere „Mitteilungen erlauben“. Danach WasGeht erneut öffnen.';
+ else if(!message)message='Bitte erlaube Mitteilungen in den Browser- oder Geräteeinstellungen und versuche es erneut.';
+ alert(message);
+}
 async function registerPush(){
- if(!('serviceWorker'in navigator)||!('PushManager'in window)||!('Notification'in window)){toast('Push wird von diesem Browser nicht unterstützt.');return}
- const permission=await Notification.requestPermission();if(permission!=='granted'){toast('Mitteilungen wurden nicht erlaubt.');return}
+ if(!('serviceWorker'in navigator)||!('PushManager'in window)||!('Notification'in window)){showPushHelp('Push wird von diesem Browser nicht unterstützt.');return false}
+ if(isIOSDevice()&&!isInstalledWebApp()){showPushHelp();return false}
+ let permission=Notification.permission;
+ if(permission==='denied'){showPushHelp();return false}
+ if(permission==='default')permission=await Notification.requestPermission();
+ if(permission!=='granted'){showPushHelp('Die Mitteilungsanfrage wurde nicht erlaubt.');return false}
  const reg=await navigator.serviceWorker.ready;
  let sub=await reg.pushManager.getSubscription();
  const wantedKey=urlBase64ToUint8Array(WG_VAPID_PUBLIC);
@@ -128,6 +142,7 @@ async function registerPush(){
  const {error}=await sb.from('wg_push_subscriptions').upsert({user_id:state.user.id,endpoint:sub.endpoint,subscription:sub.toJSON()},{onConflict:'user_id,endpoint'});
  if(error)throw error;
  toast('Push-Mitteilungen sind auf diesem Gerät eingerichtet.');
+ return true;
 }
 async function sendPushForMessage(id){try{const {data,error}=await sb.functions.invoke('wg-send-push',{body:{message_id:id}});if(error){console.warn('Push-Zustellung:',error.message);toast('Nachricht gesendet, Push-Versand fehlgeschlagen: '+error.message);return}if(data?.error)toast('Push-Versand: '+data.error)}catch(e){console.warn('Push-Zustellung fehlgeschlagen',e);toast('Push-Versand fehlgeschlagen.')}}
 
@@ -572,7 +587,8 @@ async function renderProfile(){
         toast('Benachrichtigungen sind für dieses Gerät deaktiviert.');
       }else{
         if(!('Notification'in window)){toast('Dieser Browser unterstützt keine Benachrichtigungen.');return}
-        await registerPush();
+        const registered=await registerPush();
+        if(!registered)return;
         const reg=await navigator.serviceWorker.ready;
         const sub=await reg.pushManager.getSubscription();
         const {data:stored}=await sb.from('wg_push_subscriptions').select('id').eq('user_id',state.user.id).limit(1);
