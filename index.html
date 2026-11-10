@@ -119,6 +119,7 @@ html,body{height:100%;overflow:hidden}
 .call-control{display:grid;justify-items:center;gap:6px;color:#b7d2c4;font-size:11px}
 .call-control button{width:54px;height:54px;border-radius:18px;background:#ffffff18;border:1px solid #ffffff22;color:#fff;font-size:21px;box-shadow:0 5px 18px #0003}
 .call-control button:hover{background:#ffffff2c}
+.call-control button.control-off{background:#9d3540;border-color:#f17c83}
 .call-control .hang{background:#df424b;border-color:#ff7b81}
 .call-control .hang:hover{background:#c72d39}
 @media(max-width:650px){.call-overlay{padding:10px}.call-shell{gap:9px}.call-stage{border-radius:18px;padding:7px}.call-videos{min-height:180px;gap:8px}.call-videos>video{width:100%;height:min(38vh,310px);min-height:145px}.group-call-videos{grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px}.group-call-tile{border-radius:14px}.call-footer{gap:clamp(8px,3vw,20px)}.call-control button{width:48px;height:48px;border-radius:16px}.call-control span{font-size:10px}}
@@ -167,7 +168,7 @@ html,body{height:100%;overflow:hidden}
   <div class="call-shell">
     <header class="call-topbar"><div class="call-brand"><span class="call-brand-icon">W</span><div><h2 id="callTitle">Videoanruf</h2><p id="callState">Verbindung wird hergestellt …</p></div></div><span class="call-live"><i></i> LIVE</span></header>
     <div class="call-stage"><div class="call-videos"><video id="remoteVideo" autoplay playsinline></video><video id="localVideo" autoplay muted playsinline></video><audio id="remoteAudio" autoplay playsinline></audio><div id="groupCallVideos" class="group-call-videos hidden"></div></div></div>
-    <footer class="call-footer"><div class="call-control"><button id="muteCall" title="Mikrofon stummschalten">🎙</button><span>Mikrofon</span></div><div class="call-control"><button id="cameraCall" title="Kamera ein-/ausschalten">📷</button><span>Kamera</span></div><div class="call-control"><button id="flipCameraCall" title="Kamera wechseln" class="hidden">🔄</button><span>Kamera drehen</span></div><div class="call-control"><button class="hang" id="hangupCall" title="Anruf beenden">☎</button><span>Beenden</span></div></footer>
+    <footer class="call-footer"><div class="call-control"><button id="muteCall" title="Mikrofon stummschalten">🎙</button><span>Mikrofon</span></div><div class="call-control"><button id="cameraCall" title="Kamera ein-/ausschalten">📷</button><span>Kamera</span></div><div class="call-control"><button id="flipCameraCall" title="Kamera wechseln" class="hidden">🔄</button><span>Kamera drehen</span></div><div class="call-control"><button id="enableCallAudio" title="Ton aktivieren">🔊</button><span>Ton aktivieren</span></div><div class="call-control"><button class="hang" id="hangupCall" title="Anruf beenden">☎</button><span>Beenden</span></div></footer>
   </div>
 </div>
 <div id="toast" class="toast hidden"></div>
@@ -730,6 +731,13 @@ function listenForGroupCalls(conversationId){
  channel.readyPromise=new Promise((resolve,reject)=>{let done=false;const timer=setTimeout(()=>{if(!done){done=true;reject(new Error('Anrufkanal antwortet nicht.'))}},10000);channel.subscribe(status=>{if(done)return;if(status==='SUBSCRIBED'){done=true;clearTimeout(timer);resolve(channel)}else if(['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)){done=true;clearTimeout(timer);reject(new Error('Anrufkanal: '+status))}})});channel.readyPromise.catch(()=>{});
 }
 function groupSend(payload){const ch=state.groupCallChannel||state.incomingCallChannel;if(ch)ch.send({type:'broadcast',event:'group-call',payload})}
+async function enableCallAudio(){
+ const players=[...document.querySelectorAll('#remoteAudio,#groupCallVideos audio')].filter(a=>a.srcObject&&!a.muted);
+ const results=await Promise.allSettled(players.map(a=>a.play()));
+ if(results.some(r=>r.status==='rejected'))toast('Ton konnte nicht gestartet werden. Prüfe die Lautstärke- und Browser-Einstellungen.');
+ else toast('Anruf-Ton ist aktiviert.');
+}
+$('#enableCallAudio').addEventListener('click',enableCallAudio);
 function addGroupCallTile(id,label,stream,isLocal=false){
  const root=$('#groupCallVideos');let tile=document.getElementById('group-tile-'+id);
  if(!tile){tile=document.createElement('div');tile.className='group-call-tile'+(isLocal?' group-call-local':'');tile.id='group-tile-'+id;
@@ -782,7 +790,7 @@ async function switchCallCamera(){
   toast(nextFacing==='environment'?'Rückkamera aktiviert':'Frontkamera aktiviert');
  }catch(e){toast('Kamerawechsel nicht möglich: '+(e?.message||'Kameraberechtigung prüfen.'))}
 }
-function setupGroupCallControls(){$('#flipCameraCall').classList.toggle('hidden',!state.groupCall?.video);$('#flipCameraCall').onclick=switchCallCamera;$('#hangupCall').onclick=()=>endGroupCall(true);$('#muteCall').textContent='🎙';$('#cameraCall').textContent=state.groupCall.video?'📷':'🚫';$('#muteCall').onclick=()=>{const t=state.groupCall?.stream.getAudioTracks()[0];if(t)t.enabled=!t.enabled;$('#muteCall').textContent=t?.enabled?'🎙':'🔇'};$('#cameraCall').onclick=()=>{const t=state.groupCall?.stream.getVideoTracks()[0];if(t)t.enabled=!t.enabled;$('#cameraCall').textContent=t?.enabled?'📷':'🚫'}}
+function setupGroupCallControls(){$('#flipCameraCall').classList.toggle('hidden',!state.groupCall?.video);$('#flipCameraCall').onclick=switchCallCamera;$('#hangupCall').onclick=()=>endGroupCall(true);$('#muteCall').textContent='🎙';$('#cameraCall').textContent=state.groupCall.video?'📷':'🚫';$('#muteCall').onclick=()=>{const t=state.groupCall?.stream.getAudioTracks()[0];if(t)t.enabled=!t.enabled;$('#muteCall').textContent=t?.enabled?'🎙':'🔇';$('#muteCall').classList.toggle('control-off',!t?.enabled)};$('#cameraCall').onclick=()=>{const t=state.groupCall?.stream.getVideoTracks()[0];if(t)t.enabled=!t.enabled;$('#cameraCall').textContent=t?.enabled?'📷':'🚫';$('#cameraCall').classList.toggle('control-off',!t?.enabled)}}
 async function startGroupCall(video){if(!state.conversation||state.conversation.kind!=='group')return;if(state.groupCall||state.call){toast('Du bist bereits in einem Anruf.');return}try{const ch=state.incomingCallChannel;if(!ch)throw new Error('Gruppenchat bitte neu öffnen.');await ch.readyPromise;const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video});state.groupCall={stream,video,peers:{}};state.groupCallChannel=ch;$('#remoteVideo').style.display='none';$('#localVideo').style.display='none';$('#remoteAudio').style.display='none';$('#groupCallVideos').classList.remove('hidden');$('#groupCallVideos').innerHTML='';$('#callOverlay').classList.remove('hidden');$('#flipCameraCall').classList.toggle('hidden',!video);$('#flipCameraCall').onclick=switchCallCamera;$('#callTitle').textContent=video?'Video-Gruppenanruf':'Gruppen-Sprachanruf';$('#callState').textContent='Warte auf Gruppenmitglieder …';addGroupCallTile('local',state.profile?.username||'Du',stream,true);setupGroupCallControls();const {data:invite,error:inviteError}=await sb.from('wg_messages').insert({conversation_id:state.conversation.id,sender_id:state.user.id,body:video?'__WG_GROUP_CALL_INVITE_VIDEO__':'__WG_GROUP_CALL_INVITE_AUDIO__',message_type:'system'}).select('id').single();if(inviteError)throw inviteError;sendPushForMessage(invite.id);groupSend({type:'invite',from:state.user.id,username:state.profile?.username||'Ein Gruppenmitglied',video});toast('Gruppenanruf gestartet.')}catch(e){toast('Start fehlgeschlagen: '+(e?.message||'Mikrofon/Kamera prüfen.'));if(state.groupCall)await endGroupCall(false)}}
 async function joinGroupCall(video){if(!state.conversation||state.conversation.kind!=='group'||state.groupCall)return;try{const ch=state.incomingCallChannel;if(!ch)throw new Error('Gruppenchat neu öffnen.');await ch.readyPromise;const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video});state.groupCall={stream,video,peers:{}};state.groupCallChannel=ch;$('#remoteVideo').style.display='none';$('#localVideo').style.display='none';$('#remoteAudio').style.display='none';$('#groupCallVideos').classList.remove('hidden');$('#groupCallVideos').innerHTML='';$('#callOverlay').classList.remove('hidden');$('#callTitle').textContent=video?'Video-Gruppenanruf':'Gruppen-Sprachanruf';$('#callState').textContent='Verbinde Gruppenmitglieder …';addGroupCallTile('local',state.profile?.username||'Du',stream,true);setupGroupCallControls();groupSend({type:'join',from:state.user.id,username:state.profile?.username||'Teilnehmer'})}catch(e){toast('Beitreten fehlgeschlagen: '+(e?.message||'Mikrofon/Kamera prüfen.'));if(state.groupCall)await endGroupCall(false)}}
 async function endGroupCall(sendLeave){const c=state.groupCall;if(!c)return;if(sendLeave)groupSend({type:'leave',from:state.user.id});Object.keys(c.peers).forEach(closeGroupPeer);c.stream?.getTracks().forEach(t=>t.stop());state.groupCall=null;state.groupCallChannel=null;$('#groupCallVideos').innerHTML='';$('#groupCallVideos').classList.add('hidden');$('#callOverlay').classList.add('hidden');$('#remoteVideo').style.display='';$('#localVideo').style.display='';$('#remoteAudio').style.display=''}
@@ -814,7 +822,7 @@ function listenForDmCalls(conversationId){
      $('#remoteVideo').play().catch(()=>{});
      $('#callState').textContent='Verbunden';
     };
-    $('#localVideo').srcObject=null;$('#remoteVideo').srcObject=null;$('#remoteAudio').srcObject=null;$('#remoteVideo').muted=true;$('#localVideo').muted=true;$('#localVideo').style.display=payload.video?'block':'none';$('#remoteVideo').style.display=payload.video?'block':'none';
+    $('#localVideo').srcObject=null;$('#remoteVideo').srcObject=null;$('#remoteAudio').srcObject=null;$('#remoteVideo').muted=true;$('#localVideo').muted=true;$('#localVideo').style.display=payload.video?'block':'none';$('#remoteVideo').style.display=payload.video?'block':'none';$('#flipCameraCall').classList.toggle('hidden',!payload.video);$('#flipCameraCall').onclick=switchCallCamera;
      await pc.setRemoteDescription(payload.description);
     for(const candidate of (state.pendingCallCandidates||[]).splice(0))await pc.addIceCandidate(candidate);
     const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:!!payload.video});
@@ -826,8 +834,8 @@ function listenForDmCalls(conversationId){
     $('#localVideo').style.display=payload.video?'block':'none';$('#remoteVideo').style.display=payload.video?'block':'none';
     $('#callOverlay').classList.remove('hidden');$('#callTitle').textContent=payload.video?'Videoanruf':'Sprachanruf';$('#callState').textContent='Verbinde …';
     $('#hangupCall').onclick=()=>endCall(true);
-    $('#muteCall').onclick=()=>{const t=stream.getAudioTracks()[0];if(t)t.enabled=!t.enabled;$('#muteCall').textContent=t?.enabled?'🎙':'🔇'};
-    $('#cameraCall').onclick=()=>{const t=stream.getVideoTracks()[0];if(t)t.enabled=!t.enabled;$('#cameraCall').textContent=t?.enabled?'📷':'🚫'};
+    $('#muteCall').onclick=()=>{const t=stream.getAudioTracks()[0];if(t)t.enabled=!t.enabled;$('#muteCall').textContent=t?.enabled?'🎙':'🔇';$('#muteCall').classList.toggle('control-off',!t?.enabled)};
+    $('#cameraCall').onclick=()=>{const t=stream.getVideoTracks()[0];if(t)t.enabled=!t.enabled;$('#cameraCall').textContent=t?.enabled?'📷':'🚫';$('#cameraCall').classList.toggle('control-off',!t?.enabled)};
    }else if(payload.description.type==='answer'&&state.call?.pc){
     await state.call.pc.setRemoteDescription(payload.description);
     for(const candidate of state.call.pendingCandidates.splice(0))await state.call.pc.addIceCandidate(candidate);
@@ -902,8 +910,8 @@ async function startCall(video){
   });
   await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Anrufkanal konnte nicht verbunden werden.')),10000);channel.subscribe(status=>{if(status==='SUBSCRIBED'){clearTimeout(timer);resolve()}})});
   $('#hangupCall').onclick=()=>endCall(true);
-  $('#muteCall').onclick=()=>{const t=stream.getAudioTracks()[0];if(t)t.enabled=!t.enabled;$('#muteCall').textContent=t?.enabled?'🎙':'🔇'};
-  $('#cameraCall').onclick=()=>{const t=stream.getVideoTracks()[0];if(t)t.enabled=!t.enabled;$('#cameraCall').textContent=t?.enabled?'📷':'🚫'};
+  $('#muteCall').onclick=()=>{const t=stream.getAudioTracks()[0];if(t)t.enabled=!t.enabled;$('#muteCall').textContent=t?.enabled?'🎙':'🔇';$('#muteCall').classList.toggle('control-off',!t?.enabled)};
+  $('#cameraCall').onclick=()=>{const t=stream.getVideoTracks()[0];if(t)t.enabled=!t.enabled;$('#cameraCall').textContent=t?.enabled?'📷':'🚫';$('#cameraCall').classList.toggle('control-off',!t?.enabled)};
   loadMessages();
  }catch(e){toast('Mikrofon/Kamera nicht verfügbar: '+(e?.message||'Bitte Berechtigungen prüfen.'));if(state.call)await endCall(false)}
 }
