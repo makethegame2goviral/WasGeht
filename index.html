@@ -96,6 +96,33 @@ html,body{height:100%;overflow:hidden}
 .emoji-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:5px}
 .emoji-grid button{background:#f0f7f2;border-radius:10px;min-height:40px;font-size:22px}
 @media(max-width:480px){.emoji-grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
+/* Premium call experience */
+.call-overlay{background:radial-gradient(ellipse at 50% -10%,#1b6045 0%,#0b2118 48%,#06130e 100%);padding:clamp(10px,2.5vw,28px);overflow:auto;justify-content:center}
+.call-shell{width:min(1180px,100%);min-height:min(760px,100%);display:flex;flex-direction:column;gap:14px;margin:auto}
+.call-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 4px;color:#fff}
+.call-brand{display:flex;align-items:center;gap:12px;min-width:0}
+.call-brand-icon{width:46px;height:46px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(145deg,#2de39a,#08784e);font-size:22px;font-weight:950;box-shadow:0 8px 28px #1bd58b35}
+.call-topbar h2{font-size:clamp(18px,2.5vw,25px);margin:0;letter-spacing:-.5px}
+.call-topbar p{font-size:13px;color:#a9c8b8;margin:5px 0 0}
+.call-live{font-size:10px;letter-spacing:1.2px;color:#d4f8e6;background:#ffffff12;border:1px solid #ffffff20;border-radius:30px;padding:8px 11px;white-space:nowrap}
+.call-live i{display:inline-block;width:7px;height:7px;background:#42e49a;border-radius:50%;margin-right:6px;box-shadow:0 0 12px #42e49a}
+.call-stage{flex:1;min-height:220px;background:#071a12a8;border:1px solid #ffffff16;border-radius:26px;padding:clamp(8px,1.5vw,18px);box-shadow:0 20px 70px #0005}
+.call-videos{width:100%;max-width:none;min-height:220px;height:100%;align-items:center;gap:14px;flex-wrap:wrap}
+.call-videos>video{width:min(47%,540px);height:min(62vh,520px);max-height:none;min-height:180px;object-fit:cover;background:linear-gradient(145deg,#183d2c,#091a12);border:1px solid #ffffff24;border-radius:20px;box-shadow:0 10px 35px #0004}
+.call-videos>audio{display:none}
+.group-call-videos{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));align-content:center;gap:14px;width:100%;max-width:none;max-height:none;overflow-y:auto;padding:4px}
+.group-call-tile{width:100%;min-width:0;aspect-ratio:16/10;border:1px solid #ffffff24;background:linear-gradient(145deg,#183d2c,#091a12);border-radius:20px;box-shadow:0 10px 35px #0004}
+.group-call-tile video{width:100%;height:100%;object-fit:cover}
+.group-call-tile video[hidden]{display:none}
+.group-call-tile span{left:12px;bottom:12px;padding:7px 11px;border:1px solid #ffffff20;border-radius:10px;background:#06150fcf;font-size:12px;font-weight:700}
+.call-footer{display:flex;justify-content:center;align-items:center;gap:clamp(12px,4vw,38px);padding:8px 10px 4px}
+.call-control{display:grid;justify-items:center;gap:6px;color:#b7d2c4;font-size:11px}
+.call-control button{width:54px;height:54px;border-radius:18px;background:#ffffff18;border:1px solid #ffffff22;color:#fff;font-size:21px;box-shadow:0 5px 18px #0003}
+.call-control button:hover{background:#ffffff2c}
+.call-control .hang{background:#df424b;border-color:#ff7b81}
+.call-control .hang:hover{background:#c72d39}
+@media(max-width:650px){.call-overlay{padding:10px}.call-shell{gap:9px}.call-stage{border-radius:18px;padding:7px}.call-videos{min-height:180px;gap:8px}.call-videos>video{width:100%;height:min(38vh,310px);min-height:145px}.group-call-videos{grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px}.group-call-tile{border-radius:14px}.call-footer{gap:clamp(8px,3vw,20px)}.call-control button{width:48px;height:48px;border-radius:16px}.call-control span{font-size:10px}}
+@media(orientation:landscape) and (max-height:600px){.call-overlay{padding:7px 14px}.call-shell{min-height:0;gap:5px}.call-topbar{padding:0}.call-brand-icon{width:35px;height:35px;border-radius:11px}.call-topbar h2{font-size:17px}.call-topbar p{font-size:11px;margin-top:2px}.call-stage{min-height:0;padding:6px;border-radius:15px}.call-videos{min-height:0;flex-wrap:nowrap}.call-videos>video{width:min(44%,480px);height:48vh;min-height:120px}.group-call-videos{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));max-height:52vh}.group-call-tile{aspect-ratio:16/9}.call-footer{padding:0;gap:16px}.call-control{gap:2px}.call-control button{width:40px;height:40px;border-radius:13px;font-size:17px}}
 </style>
 </head>
 <body>
@@ -137,9 +164,11 @@ html,body{height:100%;overflow:hidden}
 </div>
 <div id="modalRoot"></div>
 <div id="callOverlay" class="call-overlay hidden">
-  <h2 id="callTitle">Anruf</h2><p id="callState">Verbinde …</p>
-  <div class="call-videos"><video id="remoteVideo" autoplay playsinline></video><video id="localVideo" autoplay muted playsinline></video><audio id="remoteAudio" autoplay playsinline></audio><div id="groupCallVideos" class="group-call-videos hidden"></div></div>
-  <div class="call-buttons"><button id="muteCall" title="Mikrofon">🎙</button><button id="cameraCall" title="Kamera">📷</button><button id="flipCameraCall" title="Vordere/rückwärtige Kamera wechseln" class="hidden">🔄</button><button class="hang" id="hangupCall" title="Auflegen">☎</button></div>
+  <div class="call-shell">
+    <header class="call-topbar"><div class="call-brand"><span class="call-brand-icon">W</span><div><h2 id="callTitle">Videoanruf</h2><p id="callState">Verbindung wird hergestellt …</p></div></div><span class="call-live"><i></i> LIVE</span></header>
+    <div class="call-stage"><div class="call-videos"><video id="remoteVideo" autoplay playsinline></video><video id="localVideo" autoplay muted playsinline></video><audio id="remoteAudio" autoplay playsinline></audio><div id="groupCallVideos" class="group-call-videos hidden"></div></div></div>
+    <footer class="call-footer"><div class="call-control"><button id="muteCall" title="Mikrofon stummschalten">🎙</button><span>Mikrofon</span></div><div class="call-control"><button id="cameraCall" title="Kamera ein-/ausschalten">📷</button><span>Kamera</span></div><div class="call-control"><button id="flipCameraCall" title="Kamera wechseln" class="hidden">🔄</button><span>Kamera drehen</span></div><div class="call-control"><button class="hang" id="hangupCall" title="Anruf beenden">☎</button><span>Beenden</span></div></footer>
+  </div>
 </div>
 <div id="toast" class="toast hidden"></div>
 <script type="module">
@@ -701,9 +730,30 @@ function listenForGroupCalls(conversationId){
  channel.readyPromise=new Promise((resolve,reject)=>{let done=false;const timer=setTimeout(()=>{if(!done){done=true;reject(new Error('Anrufkanal antwortet nicht.'))}},10000);channel.subscribe(status=>{if(done)return;if(status==='SUBSCRIBED'){done=true;clearTimeout(timer);resolve(channel)}else if(['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)){done=true;clearTimeout(timer);reject(new Error('Anrufkanal: '+status))}})});channel.readyPromise.catch(()=>{});
 }
 function groupSend(payload){const ch=state.groupCallChannel||state.incomingCallChannel;if(ch)ch.send({type:'broadcast',event:'group-call',payload})}
-function addGroupCallTile(id,label,stream,isLocal=false){const root=$('#groupCallVideos');let tile=document.getElementById('group-tile-'+id);if(!tile){tile=document.createElement('div');tile.className='group-call-tile'+(isLocal?' group-call-local':'');tile.id='group-tile-'+id;const v=document.createElement('video');v.autoplay=true;v.playsInline=true;v.muted=!!isLocal;const cap=document.createElement('span');cap.textContent=label;tile.append(v,cap);root.append(tile)}const v=tile.querySelector('video');if(v.srcObject!==stream)v.srcObject=stream;v.play().catch(()=>{})}
+function addGroupCallTile(id,label,stream,isLocal=false){
+ const root=$('#groupCallVideos');let tile=document.getElementById('group-tile-'+id);
+ if(!tile){tile=document.createElement('div');tile.className='group-call-tile'+(isLocal?' group-call-local':'');tile.id='group-tile-'+id;
+  const v=document.createElement('video');v.autoplay=true;v.playsInline=true;v.muted=true;
+  const audio=document.createElement('audio');audio.autoplay=true;audio.playsInline=true;audio.muted=!!isLocal;audio.volume=1;
+  const cap=document.createElement('span');cap.textContent=label;tile.append(v,audio,cap);root.append(tile);
+ }
+ const v=tile.querySelector('video'),audio=tile.querySelector('audio');
+ v.srcObject=stream;v.hidden=!stream.getVideoTracks().length;
+ audio.srcObject=stream;audio.muted=!!isLocal;
+ if(stream.getVideoTracks().length)v.play().catch(()=>{});
+ if(!isLocal&&stream.getAudioTracks().length)audio.play().catch(()=>{$('#callState').textContent='Tippe auf den Bildschirm, um den Gruppen-Ton zu aktivieren';});
+}
 function closeGroupPeer(id){const p=state.groupCall?.peers?.[id];if(!p)return;try{p.pc.close()}catch{}delete state.groupCall.peers[id];document.getElementById('group-tile-'+id)?.remove()}
-async function createGroupPeer(id,offer,name){if(!state.groupCall)throw new Error('Kein Gruppenanruf aktiv.');if(state.groupCall.peers[id])return state.groupCall.peers[id].pc;const pc=new RTCPeerConnection({iceServers:await getCallIceServers()});const p={pc,pending:[]};state.groupCall.peers[id]=p;state.groupCall.stream.getTracks().forEach(t=>pc.addTrack(t,state.groupCall.stream));pc.onicecandidate=e=>{if(e.candidate)groupSend({type:'signal',signal:'candidate',from:state.user.id,to:id,candidate:e.candidate})};pc.ontrack=e=>{const stream=e.streams?.[0]||p.remoteStream||(p.remoteStream=new MediaStream());if(!stream.getTracks().some(t=>t.id===e.track.id))stream.addTrack(e.track);p.remoteStream=stream;addGroupCallTile(id,name,stream)};pc.onconnectionstatechange=()=>{if(['failed','closed'].includes(pc.connectionState))closeGroupPeer(id)};if(offer){const o=await pc.createOffer();await pc.setLocalDescription(o);groupSend({type:'signal',signal:'offer',from:state.user.id,to:id,description:pc.localDescription})}return pc}
+async function createGroupPeer(id,offer,name){if(!state.groupCall)throw new Error('Kein Gruppenanruf aktiv.');if(state.groupCall.peers[id])return state.groupCall.peers[id].pc;const pc=new RTCPeerConnection({iceServers:await getCallIceServers()});const p={pc,pending:[]};state.groupCall.peers[id]=p;state.groupCall.stream.getTracks().forEach(t=>pc.addTrack(t,state.groupCall.stream));pc.onicecandidate=e=>{if(e.candidate)groupSend({type:'signal',signal:'candidate',from:state.user.id,to:id,candidate:e.candidate})};pc.ontrack=e=>{
+  const stream=e.streams?.[0]||p.remoteStream||(p.remoteStream=new MediaStream());
+  if(!stream.getTracks().some(t=>t.id===e.track.id))stream.addTrack(e.track);
+  p.remoteStream=stream;addGroupCallTile(id,name,stream);
+  e.track.onunmute=()=>{addGroupCallTile(id,name,stream);const audio=document.getElementById('group-tile-'+id)?.querySelector('audio');audio?.play().catch(()=>{$('#callState').textContent='Bitte Gruppen-Ton durch Tippen aktivieren';});};
+ };
+ pc.onconnectionstatechange=()=>{
+  if(pc.connectionState==='connected')$('#callState').textContent='Gruppenanruf · '+(Object.keys(state.groupCall?.peers||{}).length+1)+' Teilnehmer verbunden';
+  if(['failed','closed'].includes(pc.connectionState))closeGroupPeer(id);
+ };if(offer){const o=await pc.createOffer();await pc.setLocalDescription(o);groupSend({type:'signal',signal:'offer',from:state.user.id,to:id,description:pc.localDescription})}return pc}
 async function switchCallCamera(){
  const group=state.groupCall,call=state.call;
  const current=group?.stream||call?.stream;
