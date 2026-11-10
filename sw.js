@@ -1,4 +1,4 @@
-const CACHE='wasgeht-shell-v9';
+const CACHE='wasgeht-shell-v10';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icon.svg?v=4'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
@@ -20,6 +20,7 @@ self.addEventListener('push',event=>{
     body:data.body||'Du hast eine neue Nachricht.',
     icon:'./icon.svg?v=4',
     badge:'./icon.svg?v=4',
+    timestamp:Number(data.timestamp)||Date.now(),
     tag:data.tag||'wasgeht-message',
     data:{url:data.url||'./',isCall},
     actions:isCall?[{action:'join',title:'Beitreten'},{action:'open',title:'Öffnen'}]:[{action:'open',title:'Öffnen'}],
