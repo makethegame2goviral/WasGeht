@@ -62,6 +62,40 @@
   #app.chat-open .list-panel{display:none!important}
   #app.chat-open .main{display:flex!important}
 }
+/* Touch + viewport repair */
+html,body{height:100%;overflow:hidden}
+#app,.main,.list-panel,.messages,.list-content{min-height:0}
+.main{overflow:hidden}
+.messages,.list-content,.section-view{overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y}
+.composer{flex:none;min-height:60px;position:relative;z-index:2}
+.composer textarea{min-width:0;min-height:44px;max-height:140px;flex:1 1 auto;resize:none;user-select:text;-webkit-user-select:text;touch-action:pan-y;pointer-events:auto;font-size:16px;line-height:1.35}
+.composer button{flex:0 0 42px;min-width:42px;min-height:42px;touch-action:manipulation}
+@media (max-width:900px) and (orientation:portrait){#app{grid-template-columns:64px minmax(220px,34vw) minmax(0,1fr)}}
+@media (max-width:760px) and (orientation:portrait){
+ #app{display:block!important;position:relative!important;height:100dvh!important;min-height:0!important;overflow:hidden!important}
+ .rail{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;height:calc(66px + env(safe-area-inset-bottom))!important;padding-bottom:env(safe-area-inset-bottom)!important;z-index:100!important}
+ .list-panel,.main{position:absolute!important;left:0!important;right:0!important;top:0!important;bottom:calc(66px + env(safe-area-inset-bottom))!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:hidden!important}
+ .list-panel{display:flex!important}.main{display:none!important;flex-direction:column!important}
+ #app.chat-open .list-panel{display:none!important}#app.chat-open .main{display:flex!important}
+ .chat-head{flex:0 0 58px!important;height:58px!important;min-height:58px!important;padding:6px 9px!important}
+ .chat-head .avatar{width:34px;height:34px}.chat-actions button{min-width:34px;padding:6px!important}
+ .messages{display:flex!important;flex:1 1 0!important;min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;padding:12px 10px!important}
+ .composer{display:flex!important;flex:0 0 auto!important;align-items:flex-end!important;gap:5px!important;padding:7px 7px max(8px,env(safe-area-inset-bottom))!important;background:#fff!important}
+ .composer textarea{min-height:42px!important;max-height:110px!important;padding:10px!important}
+ .composer button{width:38px!important;min-width:38px!important;height:42px!important;min-height:42px!important;padding:0!important}
+ .bubble-row{max-width:94%!important}
+}
+@media (orientation:landscape) and (max-height:600px){
+ #app{height:100dvh!important;min-height:0!important;overflow:hidden!important}
+ .main{min-height:0!important;overflow:hidden!important}
+ .messages{min-height:0!important;flex:1 1 0!important;overflow-y:auto!important;overscroll-behavior:contain!important}
+ .composer{display:flex!important;flex:0 0 auto!important;min-height:54px!important;padding:5px 8px!important}
+ .composer textarea{min-height:40px!important;max-height:72px!important;font-size:16px!important}
+ .composer button{width:38px!important;min-width:38px!important;height:40px!important;min-height:40px!important}
+}
+.emoji-grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:5px}
+.emoji-grid button{background:#f0f7f2;border-radius:10px;min-height:40px;font-size:22px}
+@media(max-width:480px){.emoji-grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -252,7 +286,7 @@ async function loadChatList(){
  $('#toggleArchived').onclick=()=>{state.showArchived=!state.showArchived;loadChatList()};
  $('#listContent').querySelectorAll('[data-conv]').forEach(el=>el.addEventListener('click',()=>openConversation(el.dataset.conv)));
 }
-async function openConversation(id){const c=state.conversations.find(x=>x.id===id)||(await sb.from('wg_conversations').select('*').eq('id',id).single()).data;if(!c)return;state.conversation=c;$('#app').classList.add('chat-open');const members=await sb.from('wg_conversation_members').select('user_id,role').eq('conversation_id',id);const other=(members.data||[]).find(x=>x.user_id!==state.user.id);const op=other?(await sb.from('wg_profiles').select('username,last_seen').eq('user_id',other.user_id).maybeSingle()).data:null;const title=c.kind==='group'?c.title:(op?.username||'Einzelchat');const {data:groupAvatarData}=c.kind==='group'&&c.avatar_path?await sb.storage.from('wg-media').createSignedUrl(c.avatar_path,3600):{data:null};const avatarMarkup=c.kind==='group'?(groupAvatarData?.signedUrl?'<img src="'+safe(groupAvatarData.signedUrl)+'" alt="">':'👥'):safe(initials(title));const online=op?.last_seen&&Date.now()-new Date(op.last_seen).getTime()<90000;$('#main').innerHTML='<div class="chat-head"><button class="ghost mobile-back" style="display:none" id="backChats">‹</button><div class="avatar">'+avatarMarkup+'</div><div class="head-meta"><strong>'+safe(title)+'</strong><div class="muted">'+(c.kind==='group'?'Gruppe · '+(members.data||[]).length+' Mitglieder':(online?'<span class="dot"></span>Online':'Offline'))+'</div></div><div class="chat-actions">'+(c.kind==='dm'?'<button class="ghost" id="voiceCall" title="Sprachanruf">📞</button><button class="ghost" id="videoCall" title="Videoanruf">▣</button>':'<button class="ghost" id="groupVoiceCall" title="Gruppen-Sprachanruf">📞</button><button class="ghost" id="groupVideoCall" title="Video-Gruppenanruf">▣</button><button class="ghost" id="groupInfo" title="Gruppeninfo">ⓘ</button>')+'<button class="ghost" id="chatMore" title="Mehr">⋯</button></div></div><div class="messages" id="messages"></div><div class="composer"><button class="ghost" id="recordVoice" title="Sprachnachricht aufnehmen">🎙</button><button class="ghost" id="attach" title="Datei senden">＋</button><input id="fileInput" type="file" accept="image/*,video/mp4,video/webm,audio/*" class="hidden"><textarea id="messageInput" rows="1" placeholder="Nachricht schreiben …"></textarea><button class="primary" id="sendMessage" title="Senden">➤</button></div>';$('#backChats').addEventListener('click',()=>{$('#app').classList.remove('chat-open');loadView('chats')});$('#sendMessage').addEventListener('click',sendMessage);$('#messageInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});$('#attach').addEventListener('click',()=>$('#fileInput').click());$('#recordVoice').addEventListener('click',recordVoiceMessage);$('#fileInput').addEventListener('change',uploadMessageFile);if(c.kind==='group'){$('#groupInfo').addEventListener('click',()=>showGroupInfo(c));$('#groupVoiceCall').addEventListener('click',()=>startGroupCall(false));$('#groupVideoCall').addEventListener('click',()=>startGroupCall(true))}else{$('#voiceCall').addEventListener('click',()=>startCall(false));$('#videoCall').addEventListener('click',()=>startCall(true))}$('#chatMore').addEventListener('click',()=>showChatMore(c,other));listenForCalls(id);await loadMessages();if(state.realtime)sb.removeChannel(state.realtime);state.realtime=sb.channel('wg-msg-'+id).on('postgres_changes',{event:'*',schema:'public',table:'wg_messages',filter:'conversation_id=eq.'+id},payload=>{loadMessages();}).subscribe()}
+async function openConversation(id){const c=state.conversations.find(x=>x.id===id)||(await sb.from('wg_conversations').select('*').eq('id',id).single()).data;if(!c)return;state.conversation=c;$('#app').classList.add('chat-open');const members=await sb.from('wg_conversation_members').select('user_id,role').eq('conversation_id',id);const other=(members.data||[]).find(x=>x.user_id!==state.user.id);const op=other?(await sb.from('wg_profiles').select('username,last_seen').eq('user_id',other.user_id).maybeSingle()).data:null;const title=c.kind==='group'?c.title:(op?.username||'Einzelchat');const {data:groupAvatarData}=c.kind==='group'&&c.avatar_path?await sb.storage.from('wg-media').createSignedUrl(c.avatar_path,3600):{data:null};const avatarMarkup=c.kind==='group'?(groupAvatarData?.signedUrl?'<img src="'+safe(groupAvatarData.signedUrl)+'" alt="">':'👥'):safe(initials(title));const online=op?.last_seen&&Date.now()-new Date(op.last_seen).getTime()<90000;$('#main').innerHTML='<div class="chat-head"><button class="ghost mobile-back" style="display:none" id="backChats">‹</button><div class="avatar">'+avatarMarkup+'</div><div class="head-meta"><strong>'+safe(title)+'</strong><div class="muted">'+(c.kind==='group'?'Gruppe · '+(members.data||[]).length+' Mitglieder':(online?'<span class="dot"></span>Online':'Offline'))+'</div></div><div class="chat-actions">'+(c.kind==='dm'?'<button class="ghost" id="voiceCall" title="Sprachanruf">📞</button><button class="ghost" id="videoCall" title="Videoanruf">▣</button>':'<button class="ghost" id="groupVoiceCall" title="Gruppen-Sprachanruf">📞</button><button class="ghost" id="groupVideoCall" title="Video-Gruppenanruf">▣</button><button class="ghost" id="groupInfo" title="Gruppeninfo">ⓘ</button>')+'<button class="ghost" id="chatMore" title="Mehr">⋯</button></div></div><div class="messages" id="messages"></div><div class="composer"><button class="ghost" id="recordVoice" title="Sprachnachricht aufnehmen">🎙</button><button class="ghost" id="emojiButton" title="Emoji einfügen">😊</button><button class="ghost" id="attach" title="Bild oder Datei senden">＋</button><input id="fileInput" type="file" accept="image/*,video/mp4,video/webm,audio/*" class="hidden"><textarea id="messageInput" rows="1" inputmode="text" enterkeyhint="send" autocomplete="off" autocapitalize="sentences" placeholder="Nachricht schreiben …"></textarea><button class="primary" id="sendMessage" title="Senden">➤</button></div>';$('#backChats').addEventListener('click',()=>{$('#app').classList.remove('chat-open');loadView('chats')});$('#sendMessage').addEventListener('click',sendMessage);$('#messageInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});$('#emojiButton').addEventListener('click',chooseComposerEmoji);$('#attach').addEventListener('click',()=>$('#fileInput').click());$('#recordVoice').addEventListener('click',recordVoiceMessage);$('#fileInput').addEventListener('change',uploadMessageFile);if(c.kind==='group'){$('#groupInfo').addEventListener('click',()=>showGroupInfo(c));$('#groupVoiceCall').addEventListener('click',()=>startGroupCall(false));$('#groupVideoCall').addEventListener('click',()=>startGroupCall(true))}else{$('#voiceCall').addEventListener('click',()=>startCall(false));$('#videoCall').addEventListener('click',()=>startCall(true))}$('#chatMore').addEventListener('click',()=>showChatMore(c,other));listenForCalls(id);await loadMessages();if(state.realtime)sb.removeChannel(state.realtime);state.realtime=sb.channel('wg-msg-'+id).on('postgres_changes',{event:'*',schema:'public',table:'wg_messages',filter:'conversation_id=eq.'+id},payload=>{loadMessages();}).subscribe()}
 async function loadMessages(){
  if(!state.conversation)return;
  const {data,error}=await sb.from('wg_messages').select('*').eq('conversation_id',state.conversation.id).order('created_at',{ascending:true}).limit(250);
@@ -268,7 +302,7 @@ async function loadMessages(){
  const reactionMap={};(reactionRows.data||[]).forEach(r=>{(reactionMap[r.message_id]??=[]).push(r)});
  const receiptRows=state.messages.length?(await sb.from('wg_message_receipts').select('message_id,delivered_at,read_at,user_id').in('message_id',state.messages.map(m=>m.id)).neq('user_id',state.user.id)).data||[]:[];
  const receiptMap=Object.fromEntries(receiptRows.map(r=>[r.message_id,r]));
- const mediaUrls={};for(const m of state.messages){if(m.media_path){const {data}=await sb.storage.from('wg-media').createSignedUrl(m.media_path,3600);if(data?.signedUrl)mediaUrls[m.id]=data.signedUrl}}
+ const mediaUrls={};const mediaPaths=[...new Set(state.messages.map(m=>m.media_path).filter(Boolean))];if(mediaPaths.length){const {data:signedRows,error:signedError}=await sb.storage.from('wg-media').createSignedUrls(mediaPaths,3600);if(signedError)console.warn('Medienlinks konnten nicht geladen werden:',signedError.message);for(const row of signedRows||[]){if(row.signedUrl)for(const m of state.messages)if(m.media_path===row.path)mediaUrls[m.id]=row.signedUrl}}
  const pinnedIds=(pinRows.data||[]).map(x=>x.message_id);
  const pinnedMessages=pinnedIds.length?(await sb.from('wg_messages').select('id,body,sender_id,deleted_at').in('id',pinnedIds)).data||[]:[];
  const pinnedNames=pinnedMessages.length?(await sb.from('wg_profiles').select('user_id,username').in('user_id',[...new Set(pinnedMessages.map(m=>m.sender_id))])).data||[]:[];
@@ -334,7 +368,7 @@ async function forwardMessage(id){
   closeModal();
  };
 }
-async function markRead(){const unread=state.messages.filter(m=>m.sender_id!==state.user.id);for(const m of unread){await sb.from('wg_message_receipts').upsert({message_id:m.id,user_id:state.user.id,delivered_at:new Date().toISOString(),read_at:new Date().toISOString()},{onConflict:'message_id,user_id'}).catch(()=>{})}}
+async function markRead(){const unread=state.messages.filter(m=>m.sender_id!==state.user.id);if(!unread.length)return;const now=new Date().toISOString();const rows=unread.map(m=>({message_id:m.id,user_id:state.user.id,delivered_at:now,read_at:now}));const {error}=await sb.from('wg_message_receipts').upsert(rows,{onConflict:'message_id,user_id'});if(error)console.warn('Lesebestätigung fehlgeschlagen:',error.message)}
 async function sendMessage(){const input=$('#messageInput');const body=input.value.trim();if(!body||!state.conversation)return;input.value='';const payload={conversation_id:state.conversation.id,sender_id:state.user.id,body,message_type:'text',reply_to:state.replyTo};state.replyTo=null;input.placeholder='Nachricht schreiben …';const {data,error}=await sb.from('wg_messages').insert(payload).select('id').single();if(error){toast(error.message);input.value=body}else{loadMessages();sendPushForMessage(data.id)}}
 async function editMessage(id){const m=state.messages.find(x=>x.id===id);const body=prompt('Nachricht bearbeiten:',m?.body||'');if(body===null)return;const {error}=await sb.from('wg_messages').update({body:body,edited_at:new Date().toISOString()}).eq('id',id);if(error)toast(error.message);else loadMessages()}
 async function deleteMessage(id){if(!confirm('Nachricht für alle in diesem Chat löschen?'))return;const {error}=await sb.from('wg_messages').update({body:'',deleted_at:new Date().toISOString()}).eq('id',id);if(error)toast(error.message);else loadMessages()}
@@ -343,6 +377,15 @@ async function reactMessage(id,emoji='❤️'){
  const {data:existing}=await sb.from('wg_reactions').select('message_id').eq('message_id',id).eq('user_id',state.user.id).eq('emoji',emoji).maybeSingle();
  const result=existing?await sb.from('wg_reactions').delete().eq('message_id',id).eq('user_id',state.user.id).eq('emoji',emoji):await sb.from('wg_reactions').insert({message_id:id,user_id:state.user.id,emoji});
  if(result.error)toast(result.error.message);else loadMessages();
+}
+function chooseComposerEmoji(){
+ const emojis=['😀','😃','😄','😁','😆','🥹','😂','🤣','😊','😍','🥰','😘','😎','🤔','😭','😡','👍','👎','👏','🙏','❤️','💚','🔥','🎉','✨','💯','🥳','🤝','💪','🙌','💀','🤩','😴','🤗','😉','😇','😋','🤤','🤯','😮','😢','🫶','💬','🌹','☀️','🌈','🍀','⚽','🎮'];
+ showModal('<div class="modal"><h3>Emoji auswählen</h3><div class="emoji-grid">'+emojis.map(e=>'<button type="button" data-compose-emoji="'+e+'">'+e+'</button>').join('')+'</div><div class="modal-actions"><button class="ghost" id="closeComposerEmoji">Schließen</button></div></div>');
+ $('#closeComposerEmoji').onclick=closeModal;
+ document.querySelectorAll('[data-compose-emoji]').forEach(b=>b.onclick=()=>{
+  const input=$('#messageInput');const emoji=b.dataset.composeEmoji;const start=input.selectionStart??input.value.length;const end=input.selectionEnd??start;
+  input.setRangeText(emoji,start,end,'end');input.focus();input.dispatchEvent(new Event('input',{bubbles:true}));closeModal();
+ });
 }
 function chooseReaction(id){
  const emojis=['👍','❤️','😂','😮','😢','🙏','🔥','🎉'];
@@ -825,7 +868,7 @@ async function endCall(sendEnd){
 }
 window.wgGo=loadView;
 $('#listSearch').addEventListener('input',()=>{const q=$('#listSearch').value.toLowerCase();$('#listContent').querySelectorAll('.list-item').forEach(el=>el.classList.toggle('hidden',!el.textContent.toLowerCase().includes(q)))});
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').then(reg=>reg.update()).catch(()=>{});
 sb.auth.getSession().then(({data})=>{if(data.session)boot().catch(e=>{toast(e.message);$('#auth').classList.remove('hidden')})});
 </script>
 </body>
