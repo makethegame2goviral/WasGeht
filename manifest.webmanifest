@@ -1,6 +1,6 @@
 {
-  "name": "Talentpointchat – Chats. Freunde. Verbunden.",
-  "short_name": "Talentpointchat",
+  "name": "WasGeht – Chats. Freunde. Verbunden.",
+  "short_name": "WasGeht",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
