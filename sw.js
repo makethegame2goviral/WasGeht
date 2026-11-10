@@ -33,7 +33,10 @@ self.addEventListener('notificationclick',event=>{
   let target;
   try{
     const requested=new URL(event.notification.data?.url||'./',self.location.origin);
-    target=requested.origin===self.location.origin?requested.href:new URL('./',self.location.origin).href;
+    const safeTarget=requested.origin===self.location.origin?requested:new URL('./',self.location.origin);
+    // Only the explicit Beitreten action should accept the call automatically.
+    if(event.action!=='join')safeTarget.searchParams.delete('call');
+    target=safeTarget.href;
   }catch{
     target=new URL('./',self.location.origin).href;
   }
