@@ -72,7 +72,7 @@ html,body{height:100%;overflow:hidden}
 .composer button{flex:0 0 42px;min-width:42px;min-height:42px;touch-action:manipulation}
 @media (max-width:900px) and (orientation:portrait){#app{grid-template-columns:64px minmax(220px,34vw) minmax(0,1fr)}}
 @media (max-width:760px) and (orientation:portrait){
- #app{display:block!important;position:relative!important;height:100dvh!important;min-height:0!important;overflow:hidden!important}
+ #app{display:block!important;position:relative!important;height:var(--wg-vh,100dvh)!important;min-height:0!important;overflow:hidden!important}
  .rail{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;height:calc(66px + env(safe-area-inset-bottom))!important;padding-bottom:env(safe-area-inset-bottom)!important;z-index:100!important}
  .list-panel,.main{position:absolute!important;left:0!important;right:0!important;top:0!important;bottom:calc(66px + env(safe-area-inset-bottom))!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:hidden!important}
  .list-panel{display:flex!important}.main{display:none!important;flex-direction:column!important}
@@ -868,6 +868,10 @@ async function endCall(sendEnd){
 }
 window.wgGo=loadView;
 $('#listSearch').addEventListener('input',()=>{const q=$('#listSearch').value.toLowerCase();$('#listContent').querySelectorAll('.list-item').forEach(el=>el.classList.toggle('hidden',!el.textContent.toLowerCase().includes(q)))});
+if(window.visualViewport){
+ const syncChatViewport=()=>document.documentElement.style.setProperty('--wg-vh',Math.round(window.visualViewport.height)+'px');
+ syncChatViewport();window.visualViewport.addEventListener('resize',syncChatViewport);window.visualViewport.addEventListener('scroll',syncChatViewport);
+}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').then(reg=>reg.update()).catch(()=>{});
 sb.auth.getSession().then(({data})=>{if(data.session)boot().catch(e=>{toast(e.message);$('#auth').classList.remove('hidden')})});
 </script>
