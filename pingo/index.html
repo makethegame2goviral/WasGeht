@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="de"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#10111a">
+<meta name="description" content="PINGO – Deine Chats, Gruppen und Momente an einem Ort."><title>PINGO — Your people. Your place.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="./styles.css">
+</head><body><div class="app-shell">
+<aside class="sidebar"><a class="brand" href="#"><span class="brand-mark">p</span><span>PINGO</span></a>
+<div class="profile-mini"><div class="avatar self">Y</div><div class="profile-copy"><strong>Dein Profil</strong><span class="online-label"><i></i> Online</span></div><button class="icon-button" aria-label="Profiloptionen">···</button></div>
+<nav class="main-nav" aria-label="Hauptnavigation">
+<button class="nav-item active" data-view="messages"><span class="nav-icon">▤</span><span>Nachrichten</span><span class="nav-count">3</span></button>
+<button class="nav-item" data-view="moments"><span class="nav-icon">◉</span><span>Moments</span></button>
+<button class="nav-item" data-view="groups"><span class="nav-icon">♧</span><span>Gruppen</span></button>
+<button class="nav-item" data-view="discover"><span class="nav-icon">⌕</span><span>Entdecken</span></button></nav>
+<div class="sidebar-bottom"><div class="upgrade-card"><span class="spark">✳</span><strong>Dein Kreis. Deine Welt.</strong><p>Bring deine Freunde zu PINGO.</p><button id="inviteBtn" class="text-action">Freunde einladen ↗</button></div><button class="nav-item settings-button" data-view="settings"><span class="nav-icon">⚙</span><span>Einstellungen</span></button><div class="sidebar-foot">PINGO <span>EARLY ACCESS</span></div></div></aside>
+<main class="workspace"><section class="inbox-panel" id="inboxPanel">
+<header class="panel-header"><div><p class="eyebrow">DEIN PLATZ</p><h1 id="panelTitle">Nachrichten<span class="live-dot"></span></h1></div><button class="round-action" id="newChatBtn" aria-label="Neuen Chat starten">＋</button></header>
+<label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Suchen..." autocomplete="off"><kbd>⌘ K</kbd></label>
+<div class="stories-strip"><button class="story-add" id="addStory"><span class="story-ring add-ring">＋</span><small>Dein Moment</small></button><button class="story-person"><span class="story-ring ring-a"><b>M</b></span><small>Mia</small></button><button class="story-person"><span class="story-ring ring-b"><b>A</b></span><small>Alex</small></button><button class="story-person"><span class="story-ring ring-c"><b>L</b></span><small>Lena</small></button><button class="story-person"><span class="story-ring ring-d"><b>N</b></span><small>Noah</small></button></div>
+<div class="list-heading"><span id="listHeading">LETZTE CHATS</span><button id="filterBtn">Alle⌄</button></div><div class="chat-list" id="chatList"></div>
+<div class="mobile-nav"><button class="active" data-view="messages">▤<small>Chats</small></button><button data-view="moments">◉<small>Moments</small></button><button data-view="groups">♧<small>Gruppen</small></button><button data-view="discover">⌕<small>Entdecken</small></button></div>
+</section><section class="content-panel"><header class="content-topbar"><div class="breadcrumb"><span>PINGO</span><b>/</b><span id="crumb">Nachrichten</span></div><div class="top-actions"><span class="connection"><i></i> Demo-Modus</span><button class="icon-button" aria-label="Hilfe">?</button><div class="avatar self small-avatar">Y</div></div></header><div class="view-container" id="viewContainer"></div></section></main></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div><script src="./app.js" defer></script></body></html>
