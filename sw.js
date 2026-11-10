@@ -1,4 +1,4 @@
-const CACHE='wasgeht-shell-v6';
+const CACHE='wasgeht-shell-v7';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icon.svg?v=4'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
@@ -13,14 +13,16 @@ self.addEventListener('fetch',event=>{
   })));
 });
 self.addEventListener('push',event=>{
-  let data={title:'Talentpointchat',body:'Du hast eine neue Nachricht.',url:'./'};
+  let data={title:'WasGeht',body:'Du hast eine neue Nachricht.',url:'./'};
   try{if(event.data)data={...data,...event.data.json()}}catch{if(event.data)data.body=event.data.text()}
-  event.waitUntil(self.registration.showNotification(data.title||'Talentpointchat',{
+  const isCall=String(data.url||'').includes('call=1');
+  event.waitUntil(self.registration.showNotification(data.title||'WasGeht',{
     body:data.body||'Du hast eine neue Nachricht.',
     icon:'./icon.svg?v=4',
     badge:'./icon.svg?v=4',
-    tag:data.tag||'talentpointchat-message',
-    data:{url:data.url||'./'},
+    tag:data.tag||'wasgeht-message',
+    data:{url:data.url||'./',isCall},
+    actions:isCall?[{action:'join',title:'Beitreten'},{action:'open',title:'Öffnen'}]:[{action:'open',title:'Öffnen'}],
     renotify:true
   }));
 });
