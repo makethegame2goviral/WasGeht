@@ -435,9 +435,10 @@ async function showGroupInfo(c){
 }
 function showChatMore(c,other){
  const getSettings=async()=> (await sb.from('wg_conversation_settings').select('*').eq('user_id',state.user.id).eq('conversation_id',c.id).maybeSingle()).data||{};
- const canClearForAll=c.kind==='dm'||c.created_by===state.user.id;
+ const getMember=async()=> (await sb.from('wg_conversation_members').select('role').eq('user_id',state.user.id).eq('conversation_id',c.id).maybeSingle()).data||{};
  const draw=async()=>{
-  const st=await getSettings();
+  const [st,member]=await Promise.all([getSettings(),getMember()]);
+  const canClearForAll=c.kind==='dm'||member.role==='owner';
   const html='<div class="modal"><h3>Chat-Einstellungen</h3><p class="muted">„Chat löschen“ entfernt ihn dauerhaft aus deiner Chatliste. „Für alle leeren“ löscht den Nachrichtenverlauf für alle Mitglieder.</p>'+
    '<div class="actions"><button class="secondary" id="clearChatForMe">Verlauf nur für mich leeren</button>'+(canClearForAll?'<button class="danger" id="clearChatForAll">Alle Nachrichten für alle löschen</button>':'')+'<button class="danger" id="deleteChatForMe">'+(c.kind==='group'?'Gruppe verlassen':'Chat komplett aus meiner Liste löschen')+'</button><button class="secondary" id="toggleArchive">'+(st.archived?'Aus Archiv holen':'Chat archivieren')+'</button><button class="secondary" id="togglePinChat">'+(st.pinned_at?'Chat lösen':'Chat oben anheften')+'</button><button class="secondary" id="toggleMute">'+(st.muted?'Benachrichtigungen einschalten':'Chat stummschalten')+'</button><button class="secondary" id="enableNotify">Push-Mitteilungen aktivieren</button>'+
    (other?'<button class="danger" id="blockUser">Kontakt blockieren</button>':'')+'</div><div class="modal-actions"><button class="ghost" id="closeModal">Schließen</button></div></div>';
