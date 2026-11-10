@@ -878,9 +878,8 @@ async function startCall(video){
   const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video});
   const pc=new RTCPeerConnection({iceServers:await getCallIceServers()});
   stream.getTracks().forEach(t=>pc.addTrack(t,stream));
-  let channel=state.incomingCallChannel||sb.channel('wg-call-'+state.conversation.id,{config:{broadcast:{self:false}}});
   if(state.incomingCallChannel)sb.removeChannel(state.incomingCallChannel);
-  channel=sb.channel('wg-call-'+state.conversation.id,{config:{broadcast:{self:false}}});
+  const channel=sb.channel('wg-call-'+state.conversation.id,{config:{broadcast:{self:false}}});
   state.incomingCallChannel=channel;
   const conversationId=state.conversation.id;
   const {data:invite,error:inviteError}=await sb.from('wg_messages').insert({conversation_id:conversationId,sender_id:state.user.id,body:video?'__WG_CALL_INVITE_VIDEO__':'__WG_CALL_INVITE_AUDIO__',message_type:'system'}).select('id').single();
