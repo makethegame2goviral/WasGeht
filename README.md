@@ -1,6 +1,6 @@
 # WasGeht
 
-**Deine Chats. Deine Welt.** A responsive green-and-white messenger for phones, tablets and computers.
+**Deine Chats. Deine Welt.** Ein responsiver Messenger für Handy, iPad und Computer.
 
 ## Live website
 
@@ -27,7 +27,10 @@ https://github.com/makethegame2goviral/WasGeht
 - Admin dashboard for accounts and groups. Admins can manage users and inspect group messages. Private one-to-one chats are excluded by database RLS.
 - Password change and account deletion.
 - Installable PWA shell and responsive layout.
-- Incoming and outgoing voice/video call signaling (WebRTC with STUN).
+- Incoming and outgoing voice/video calls for direct chats and groups (WebRTC; the app requests TURN credentials when configured).
+- Push notifications for messages and call invitations, including a direct **Beitreten** action for incoming calls.
+- Per-user chat clearing and complete removal from the user's chat list, persisted across devices.
+- Clear the full message history for everyone in a direct chat; in groups, only the group creator can do this.
 
 ## Backend
 
@@ -55,10 +58,11 @@ The browser uses only the Supabase publishable key. Never put a Supabase service
 
 ## Notifications and calls
 
-- Browser notifications work while the app is open and permission has been granted.
-- The service worker can display push events, but true background push delivery is not activated yet. It needs VAPID keys and a protected push sender; no private push key is stored in the public repository.
-- Calls use WebRTC with a public STUN server. Some networks require TURN; reliable calls on every network are not guaranteed.
+- Background Web Push uses the `wg-send-push` Edge Function, a VAPID key pair and the private `wg_push_subscriptions` table. The private VAPID key is stored server-side and is never included in this repository.
+- Each device must enable notifications from the profile or chat settings. On iPhone/iPad, install WasGeht from Safari's Share menu → Add to Home Screen, then enable notifications from the installed app (iOS/iPadOS 16.4 or newer).
+- Message notifications open the relevant chat. Call notifications include a **Beitreten** action and open the invitation in WasGeht.
+- Direct and group calls use WebRTC. WasGeht requests TURN credentials from `wg-turn-credentials`; if TURN is not configured, it falls back to public STUN. Some networks may still prevent calls.
 
 ## Important limits
 
-This is an early messenger, not a full WhatsApp replacement. Stickers/GIF search, encrypted end-to-end messaging, chat backup/restore and fully reliable background push are not implemented. Messages are stored by the Supabase service and are not end-to-end encrypted. The free hosting/database plans have usage, storage and inactivity limits, so unlimited free operation cannot be promised.
+This is an early messenger, not a full WhatsApp replacement. Stickers/GIF search, encrypted end-to-end messaging and chat backup/restore are not implemented. Messages are stored by the Supabase service and are not end-to-end encrypted. Push delivery and calls depend on browser permissions, device support and network conditions. The free hosting/database plans have usage, storage and inactivity limits, so unlimited free operation cannot be promised.
