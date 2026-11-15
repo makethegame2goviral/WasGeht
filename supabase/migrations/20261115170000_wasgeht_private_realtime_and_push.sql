@@ -68,6 +68,8 @@ alter table public.wg_push_config enable row level security;
 revoke all on public.wg_push_config from anon, authenticated;
 grant select on public.wg_push_config to service_role;
 drop policy if exists "wg_push_config_service_read" on public.wg_push_config;
+create policy "wg_push_config_service_read" on public.wg_push_config for select to service_role using (true);
+drop policy if exists "wg_push_config_service_read" on public.wg_push_config;
 create policy "wg_push_config_service_read" on public.wg_push_config
 for select to service_role using (true);
 
