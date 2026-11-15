@@ -46,7 +46,8 @@ Deno.serve(async (req: Request) => {
     global: { headers: { Authorization: authorization } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: userData, error: userError } = await userClient.auth.getUser();
+  const accessToken = authorization.slice("Bearer ".length);
+  const { data: userData, error: userError } = await userClient.auth.getUser(accessToken);
   const user = userData?.user;
   if (userError || !user) return json({ error: "Ungültige Anmeldung." }, 401);
 
