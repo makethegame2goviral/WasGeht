@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#12845a">
+<meta name="theme-color" content="#17172b">
 <meta name="description" content="WasGeht – Chats. Freunde. Verbunden.">
 <link rel="icon" type="image/svg+xml" href="./icon.svg?v=4">
 <link rel="apple-touch-icon" sizes="180x180" href="./icon.svg?v=4">
@@ -125,6 +125,45 @@ html,body{height:100%;overflow:hidden}
 @media(max-width:650px){.call-overlay{padding:10px}.call-shell{gap:9px}.call-stage{border-radius:18px;padding:7px}.call-videos{min-height:180px;gap:8px}.call-videos>video{width:100%;height:min(38vh,310px);min-height:145px}.group-call-videos{grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px}.group-call-tile{border-radius:14px}.call-footer{gap:clamp(8px,3vw,20px)}.call-control button{width:48px;height:48px;border-radius:16px}.call-control span{font-size:10px}}
 @media(orientation:landscape) and (max-height:600px){.call-overlay{padding:7px 14px}.call-shell{min-height:0;gap:5px}.call-topbar{padding:0}.call-brand-icon{width:35px;height:35px;border-radius:11px}.call-topbar h2{font-size:17px}.call-topbar p{font-size:11px;margin-top:2px}.call-stage{min-height:0;padding:6px;border-radius:15px}.call-videos{min-height:0;flex-wrap:nowrap}.call-videos>video{width:min(44%,480px);height:48vh;min-height:120px}.group-call-videos{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));max-height:52vh}.group-call-tile{aspect-ratio:16/9}.call-footer{padding:0;gap:16px}.call-control{gap:2px}.call-control button{width:40px;height:40px;border-radius:13px;font-size:17px}}
 </style>
+
+<style id="wasgeht-2026-redesign">
+:root{--green:#7068f5;--green2:#9b8cff;--mint:#eeedff;--bg:#f4f4fa;--ink:#19192d;--muted:#77778f;--line:#e7e6f1;--white:#fff;--shadow:0 22px 70px rgba(30,25,80,.12)}
+html,body{background:var(--bg);color:var(--ink)}
+.auth-wrap{background:radial-gradient(ellipse at 15% 12%,#dedbff 0,transparent 38%),radial-gradient(ellipse at 90% 88%,#e5e1ff 0,transparent 34%),#f4f4fa}
+.auth-card{border:1px solid #ffffff;border-radius:30px;box-shadow:0 28px 90px rgba(42,35,104,.13);padding:34px}
+.brand-mark{background:linear-gradient(145deg,#a69cff,#6257ed);box-shadow:0 9px 25px #766df344}
+.primary{background:linear-gradient(135deg,#8178ff,#6257ed);box-shadow:0 7px 18px #6e63ee30}
+.primary:hover{background:linear-gradient(135deg,#7168f2,#5549dc)}
+.secondary{background:#efeeff;color:#5f56dc}
+.field input,.field textarea,.searchbox,.composer textarea{background:#fafaff;border-color:#e6e4f4}
+.field input:focus,.field textarea:focus,.searchbox:focus{border-color:#8c83ff;box-shadow:0 0 0 4px #8178ff20}
+#app{background:#f8f8fc}
+.rail{background:#19192e;border-right:0;color:#f5f4ff;padding:22px 15px}
+.rail .brand{padding:2px 10px 28px}
+.rail .tagline,.rail .muted,.rail .user-mini{color:#aaa9c7}
+.rail .nav button{color:#b8b7d0;border-radius:13px}
+.rail .nav button.active,.rail .nav button:hover{background:#343252;color:#fff}
+.rail .nav button.active .ico{color:#aaa2ff}
+.rail-bottom{border-color:#363550}
+.rail-bottom .avatar{background:#38365b;color:#c7c2ff}
+.list-panel{background:#fff;border-color:#ecebf4}
+.list-head{padding:25px 21px 16px}
+.list-head h2,.section-view h2{letter-spacing:-.9px}
+.list-item{border-radius:14px}
+.list-item:hover,.list-item.selected{background:#f0efff}
+.list-item .avatar{background:#eeedff;color:#6259df}
+.main{background:#f5f5fb}
+.empty-mark{background:#eeedff;color:#6b62ed;border-radius:28px}
+.chat-head,.composer{background:#fff;border-color:#e9e8f2}
+.bubble{border-color:#ecebf4;box-shadow:0 4px 15px #24204d08}
+.mine .bubble{background:#efeeff;border-color:#e4e1ff}
+.bubble .sender{color:#6259df}
+.card{border-color:#eae9f3;border-radius:19px;box-shadow:0 7px 24px #24204d08}
+.pill{background:#efeeff;color:#6259df}
+.status-card{background:linear-gradient(145deg,#efeeff,#fafaff);border-color:#e6e3ff}
+.modal{border:1px solid #eceaf8;box-shadow:0 25px 90px #15132d40}
+@media(max-width:850px){.rail{background:#19192e}.list-panel{background:#fff}.chat-head{background:#fff}.composer{background:#fff}}
+</style>
 </head>
 <body>
 <div id="auth" class="auth-wrap">
@@ -174,8 +213,8 @@ html,body{height:100%;overflow:hidden}
 <div id="toast" class="toast hidden"></div>
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
-const SB_URL='https://puddgzxqekteblmlpiqv.supabase.co';
-const SB_KEY='sb_publishable_PVR0CA2g2AXgzoUDnAE_pg_GkWb5LRb';
+const SB_URL='https://xbefkwirfijxglgoogrn.supabase.co';
+const SB_KEY='sb_publishable_3hsQ2uEpBBYOQ2rh44J2BQ_6mt9md6T';
 const sb=createClient(SB_URL,SB_KEY);
 const WG_VAPID_PUBLIC='BH-av83oXzQF0NmSt3saZAVzyLozLDl79BFtCoHfQl2eJWdtP-WQ08BC9xrQEPeW8ZlGhfqgwBIKeuTMqiGny0A';
 function urlBase64ToUint8Array(s){const pad='='.repeat((4-s.length%4)%4);const raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...raw].map(ch=>ch.charCodeAt(0)))}
