@@ -43,14 +43,14 @@ The browser uses only the Supabase publishable key. Never put a Supabase service
 ## First-time Supabase setup
 
 1. In Supabase Dashboard, open **Authentication → Providers → Email** and turn **Confirm email** off. The app uses username/password and no real email address, so email-based password recovery is not available.
-2. Register with the exact username **WasGehtAdminYusuf** and choose your own strong password.
+2. Register with the exact username **Yusufowner** and choose a strong password. This is a new authentication account in NEXYRON; passwords from the old Size project cannot be transferred.
 3. In Supabase Dashboard → SQL Editor, run:
 
    ```sql
    insert into public.wg_admins(user_id)
    select user_id
    from public.wg_profiles
-   where lower(username) = lower('WasGehtAdminYusuf')
+   where lower(username) = lower('Yusufowner')
    on conflict do nothing;
    ```
 
