@@ -216,7 +216,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 const SB_URL='https://xbefkwirfijxglgoogrn.supabase.co';
 const SB_KEY='sb_publishable_3hsQ2uEpBBYOQ2rh44J2BQ_6mt9md6T';
 const sb=createClient(SB_URL,SB_KEY);
-const WG_VAPID_PUBLIC='BH-av83oXzQF0NmSt3saZAVzyLozLDl79BFtCoHfQl2eJWdtP-WQ08BC9xrQEPeW8ZlGhfqgwBIKeuTMqiGny0A';
+const WG_VAPID_PUBLIC='BFBf2UgC3lcKaOMwgQNZylGP2oEJJcYTmlSuYL1QgPzrXpXtYziFpAoulb6MhVFGXE4wrn41uoD6FgdEUpznBGE';
 function urlBase64ToUint8Array(s){const pad='='.repeat((4-s.length%4)%4);const raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...raw].map(ch=>ch.charCodeAt(0)))}
 function isIOSDevice(){return /iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)}
 function isInstalledWebApp(){return window.matchMedia?.('(display-mode: standalone)').matches||navigator.standalone===true}
