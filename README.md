@@ -34,34 +34,24 @@ https://github.com/makethegame2goviral/WasGeht
 
 ## Backend
 
-WasGeht uses the existing Supabase project **Size**, with isolated `wg_` tables and a private `wg-media` storage bucket. WasGeht migrations do not alter the Size/Zynx tables.
+WasGeht uses the **NEXYRON** Supabase project with its own `wg_` tables and private `wg-media` storage bucket. Existing Deutschkompass, SnipPhoto, PINGO and other NEXYRON tables are kept separate and unchanged.
 
-Project URL: https://puddgzxqekteblmlpiqv.supabase.co
+Project URL: https://xbefkwirfijxglgoogrn.supabase.co
+
+The Cloudflare Worker serves the website files only. Calls do not use Cloudflare services.
 
 The browser uses only the Supabase publishable key. Never put a Supabase service-role/secret key in this repository.
 
-## First-time Supabase setup
+## Admin account
 
-1. In Supabase Dashboard, open **Authentication → Providers → Email** and turn **Confirm email** off. The app uses username/password and no real email address, so email-based password recovery is not available.
-2. Register with the exact username **Yusufowner** and choose a strong password. This is a new authentication account in NEXYRON; passwords from the old Size project cannot be transferred.
-3. In Supabase Dashboard → SQL Editor, run:
-
-   ```sql
-   insert into public.wg_admins(user_id)
-   select user_id
-   from public.wg_profiles
-   where lower(username) = lower('Yusufowner')
-   on conflict do nothing;
-   ```
-
-4. Sign out and back in. The Admin tab will appear.
+The existing `Yusufowner` profile is present in NEXYRON and has been added to `wg_admins`. Sign out and back in (or refresh the session) to refresh the Admin tab.
 
 ## Notifications and calls
 
-- Background Web Push uses the `wg-send-push` Edge Function, a VAPID key pair and the private `wg_push_subscriptions` table. The private VAPID key is stored server-side and is never included in this repository.
+- Background Web Push uses the deployed Supabase Edge Function `wg-send-push`, a VAPID key pair and `wg_push_subscriptions`. The private VAPID key is stored in a server-only database table and is never included in this repository.
 - Each device must enable notifications from the profile or chat settings. On iPhone/iPad, install WasGeht from Safari's Share menu → Add to Home Screen, then enable notifications from the installed app (iOS/iPadOS 16.4 or newer).
 - Message notifications open the relevant chat. Call notifications include a **Beitreten** action and open the invitation in WasGeht.
-- Direct and group calls use WebRTC. WasGeht requests TURN credentials from `wg-turn-credentials`; if TURN is not configured, it falls back to public STUN. Some networks may still prevent calls.
+- Direct and group calls use WebRTC. Supabase Realtime carries the signaling over private, membership-authorized channels; `wg-turn-credentials` supplies STUN configuration. No Cloudflare call service is used. TURN is not configured, so some restrictive networks may still prevent peer-to-peer calls.
 
 ## Important limits
 
